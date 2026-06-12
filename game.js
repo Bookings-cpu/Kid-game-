@@ -318,24 +318,58 @@ const AudioSys = {
       case 'revive':  [440, 660, 880, 1320].forEach((f, i) => this.tone(f, 0.15, 'square', 0.09, i * 0.06)); break;
       case 'over':    [520, 392, 330, 262].forEach((f, i) => this.tone(f, 0.25, 'triangle', 0.1, i * 0.18)); break;
       case 'smash':   this.tone(220, 0.2, 'sawtooth', 0.13, 0, 60); break;
+      case 'fever':   [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => this.tone(f, 0.14, 'square', 0.1, i * 0.06)); break;
+      case 'mile':    this.tone(784, 0.12, 'triangle', 0.1); this.tone(1175, 0.2, 'triangle', 0.1, 0.1); break;
     }
   },
 
-  // tiny cheerful chiptune loop
+  // coins climb in pitch as your combo grows — pure dopamine
+  coinSfx(combo) {
+    if (!S.sound || !this.ensure()) return;
+    const f = 950 * Math.pow(2, (combo % 16) / 16);
+    this.tone(f, 0.06, 'square', 0.07);
+    this.tone(f * 1.5, 0.1, 'square', 0.06, 0.05);
+  },
+
+  noise(dur, vol, when) {
+    const c = this.ctx;
+    if (!c) return;
+    if (!this.nb) {
+      const len = (c.sampleRate * 0.3) | 0;
+      this.nb = c.createBuffer(1, len, c.sampleRate);
+      const d = this.nb.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+    }
+    const s = c.createBufferSource();
+    s.buffer = this.nb;
+    const g = c.createGain();
+    const t = c.currentTime + (when || 0);
+    g.gain.setValueAtTime(vol, t);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+    s.connect(g).connect(c.destination);
+    s.start(t);
+    s.stop(t + dur + 0.02);
+  },
+
+  // chiptune loop with kick, hats, bass and a two-bar melody
   startMusic() {
     if (this.musicTimer || !S.music) return;
     if (!this.ensure()) return;
-    const bass = [131, 131, 98, 98, 110, 110, 123, 123];
-    const lead = [523, 659, 784, 659, 880, 784, 659, 587,
-                  523, 659, 784, 1047, 880, 784, 659, 523];
+    const bass = [131, 0, 131, 0, 98, 0, 98, 0, 110, 0, 110, 0, 123, 0, 147, 0];
+    const leadA = [523, 0, 659, 784, 0, 659, 880, 0, 784, 659, 587, 0, 659, 0, 523, 0];
+    const leadB = [659, 0, 784, 880, 0, 784, 1047, 0, 880, 784, 659, 0, 587, 0, 659, 0];
     this.musicStep = 0;
     this.musicTimer = setInterval(() => {
       if (!S.music || document.hidden) return;
-      const i = this.musicStep;
-      this.tone(bass[i % 8], 0.22, 'triangle', 0.05);
-      if (i % 2 === 0) this.tone(lead[(i / 2) % 16], 0.16, 'square', 0.035);
-      this.musicStep++;
-    }, 140);
+      const step = this.musicStep++;
+      const i = step % 16;
+      const bar = Math.floor(step / 16) % 2;
+      if (i % 4 === 0) this.tone(95, 0.12, 'sine', 0.15, 0, 40);  // kick
+      if (i % 2 === 1) this.noise(0.04, 0.045);                    // hat
+      if (bass[i]) this.tone(bass[i], 0.2, 'triangle', 0.055);
+      const lead = bar ? leadB : leadA;
+      if (lead[i]) this.tone(lead[i], 0.14, 'square', 0.04);
+    }, 125);
   },
 
   stopMusic() {
@@ -690,10 +724,11 @@ const G = {
   spawnAt: 0, decorAt: 0,
   pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
   boardT: 0, themeIdx: 0, camX: 0, roll: 0,
+  fever: 0, flashT: 0, nextMile: 500, queueJump: false,
   revives: 0, invinc: 0, shake: 0, dieT: 0, phase: 0,
   runMissions: [], doubled: false, lastSafe: 1,
   combo: 0, comboT: 0,
-  continueTimer: null,
+  continueTimer: null, scoreTick: null,
 };
 
 const JUMP_DUR = 0.62, SLIDE_DUR = 0.7;
@@ -706,6 +741,7 @@ function startRun() {
     spawnAt: 300, decorAt: 0,
     pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
     boardT: 0, themeIdx: 0, camX: 0, roll: 0,
+    fever: 0, flashT: 0, nextMile: 500, queueJump: false,
     revives: 0, invinc: 1.5, shake: 0, dieT: 0, phase: 0,
     runMissions: [], doubled: false, lastSafe: 1,
     combo: 0, comboT: 0,
@@ -824,6 +860,8 @@ function doJump() {
     G.jumpT = 0;
     AudioSys.sfx('jump');
     S.stats.jumps++; missionEvent('jumps', 1);
+  } else if (G.jumpT >= 0) {
+    G.queueJump = true; // buffered input — jump again the instant you land
   }
 }
 function doSlide() {
@@ -894,7 +932,7 @@ function update(dt) {
   G.camX = lerp(G.camX, G.laneF * 0.55, Math.min(1, dt * 8));
   G.roll = lerp(G.roll, (G.laneTarget - G.laneF) * 0.045, Math.min(1, dt * 10));
 
-  // jump / slide timers (with a landing puff)
+  // jump / slide timers (with a landing puff + buffered jumps)
   if (G.jumpT >= 0) {
     G.jumpT += dt;
     if (G.jumpT > JUMP_DUR) {
@@ -902,6 +940,7 @@ function update(dt) {
       const pr = project(G.laneF, 0);
       burst(pr.x, pr.y - 6, 'rgba(230,225,210,.9)', 7);
       G.shake = Math.max(G.shake, 2.5);
+      if (G.queueJump) { G.queueJump = false; G.jumpT = 0; AudioSys.sfx('jump'); S.stats.jumps++; }
     }
   }
   if (G.slideT >= 0) { G.slideT += dt; if (G.slideT > SLIDE_DUR) G.slideT = -1; }
@@ -914,7 +953,21 @@ function update(dt) {
       if (G.pu[k] <= 0) { G.pu[k] = 0; rebuildPuChips(); }
     }
   }
-  G.mult = G.pu.mult > 0 ? 2 : 1;
+  // FEVER mode — triggered by combo chains, everything counts triple
+  if (G.fever > 0) {
+    G.fever -= dt;
+    if (G.fever <= 0) { G.fever = 0; toast('Fever over — chain coins to spark it again! 🔥'); }
+  }
+  if (G.flashT > 0) G.flashT -= dt;
+  G.mult = (G.pu.mult > 0 ? 2 : 1) * (G.fever > 0 ? 3 : 1);
+  $('hud-mult').textContent = G.fever > 0 ? '🔥 FEVER x' + G.mult : 'x' + G.mult;
+
+  // distance milestones
+  if (G.dist >= G.nextMile) {
+    addFloat(`🏁 ${fmt(G.nextMile)}m!`, W / 2, H * 0.26, '#7fe0ff', 36);
+    AudioSys.sfx('mile');
+    G.nextMile += 500;
+  }
 
   // spawning by distance travelled
   G.spawnAt -= dz;
@@ -1000,18 +1053,29 @@ function update(dt) {
       G.runCoins += v;
       S.stats.totalCoins += v;
       missionEvent('coins', v);
-      AudioSys.sfx('coin');
+      AudioSys.coinSfx(G.combo);
       const pr = project(c.laneF, Math.max(0, c.z));
       addFloat(`+${v}`, pr.x, pr.y - 60, '#ffd23e');
       burst(pr.x, pr.y - 40, '#ffd23e', 5);
       G.flyCoins.push({ x: pr.x, y: pr.y - 50, t: 0 });
-      // combo chain — keep grabbing coins for bonus bursts
+      // combo chain — escalating praise, then FEVER TIME
       G.combo++; G.comboT = 1.6;
+      const praise = { 5: 'NICE!', 10: 'GREAT!', 20: 'AWESOME!', 30: 'UNSTOPPABLE!', 40: 'LEGENDARY!!' };
+      if (praise[G.combo]) {
+        addFloat(praise[G.combo], W / 2, H * 0.3, '#ff6ec4', 36);
+        AudioSys.sfx('powerup');
+      }
       if (G.combo % 10 === 0) {
         const bonus = G.combo * 5;
         G.score += bonus;
-        addFloat(`🔥 COMBO x${G.combo}! +${bonus}`, W / 2, H * 0.3, '#ff6ec4');
-        AudioSys.sfx('powerup');
+        addFloat(`COMBO x${G.combo}! +${bonus}`, W / 2, H * 0.37, '#ffd23e', 26);
+      }
+      if (G.fever <= 0 && G.combo >= 15 && G.combo % 15 === 0) {
+        G.fever = 7;
+        G.flashT = 0.35;
+        addFloat('🔥 FEVER TIME!! x3 🔥', W / 2, H * 0.3, '#fff', 42);
+        AudioSys.sfx('fever');
+        if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
       }
       refreshBalances();
     }
@@ -1117,8 +1181,8 @@ function burst(x, y, color, n) {
   }
 }
 
-function addFloat(text, x, y, color) {
-  G.floats.push({ text, x, y, color, life: 1 });
+function addFloat(text, x, y, color, size) {
+  G.floats.push({ text, x, y, color, life: size > 26 ? 1.4 : 1, size: size || 22 });
 }
 
 /* ---------- crash / continue / game over ---------- */
@@ -1200,7 +1264,18 @@ function gameOver() {
   missionEvent('runs', 1);
   save();
 
-  $('over-score').textContent = fmt(score);
+  // score ticks up — far more satisfying than a static number
+  clearInterval(G.scoreTick);
+  const stepN = Math.max(1, Math.floor(score / 45));
+  let shown = Math.min(score, stepN);
+  $('over-score').textContent = fmt(shown);
+  G.scoreTick = setInterval(() => {
+    shown = Math.min(score, shown + stepN);
+    $('over-score').textContent = fmt(shown);
+    if (shown >= score) clearInterval(G.scoreTick);
+  }, 25);
+  const stars = (isBest || score >= 5000) ? 3 : score >= 1500 ? 2 : 1;
+  $('over-stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
   $('over-best').textContent = fmt(S.best);
   $('over-coins').textContent = fmt(G.runCoins);
   $('over-newbest').classList.toggle('hidden', !isBest);
@@ -1254,6 +1329,16 @@ function updatePuChips() {
 function render() {
   ctx.clearRect(0, 0, W, H);
 
+  // dramatic slow zoom onto the crash
+  ctx.save();
+  if (G.state === 'dying') {
+    const zm = 1 + 0.16 * (1 - clamp(G.dieT / 0.9, 0, 1));
+    const pp = project(G.laneF, 0);
+    ctx.translate(pp.x, pp.y - H * 0.06);
+    ctx.scale(zm, zm);
+    ctx.translate(-pp.x, -(pp.y - H * 0.06));
+  }
+
   // sky cycles with distance
   const cyc = (G.dist / 2500) % SKIES.length;
   const i0 = Math.floor(cyc), i1 = (i0 + 1) % SKIES.length, ft = cyc - i0;
@@ -1296,32 +1381,23 @@ function render() {
     ctx.globalAlpha = 1;
   }
 
-  // parallax mountain ridges on the horizon
-  for (const [speedF, hgt, col] of [[0.12, 0.16, 'rgba(70,90,160,.35)'], [0.25, 0.1, 'rgba(50,70,130,.45)']]) {
-    const span = W / 3;
-    const shift = (G.dist * speedF) % span;
-    ctx.fillStyle = col;
-    ctx.beginPath();
-    ctx.moveTo(-span, HORIZON() + 1);
-    for (let i = -1; i <= 4; i++) {
-      const peakX = i * span - shift + span / 2;
-      ctx.lineTo(peakX, HORIZON() - H * hgt * (0.7 + 0.3 * Math.sin(i * 2.7 + speedF * 50)));
-      ctx.lineTo(peakX + span / 2, HORIZON() + 1);
-    }
-    ctx.closePath(); ctx.fill();
-  }
+  // per-world backdrops, crossfading at the borders
+  drawBackdrop(i0 % THEMES.length, 1);
+  if (ft > 0.03) drawBackdrop(i1 % THEMES.length, ft);
 
-  // distant city skyline
-  {
-    const span = W / 7;
-    const shift = (G.dist * 0.45) % span;
-    for (let i = -1; i < 9; i++) {
-      const b = SKYLINE[((i % 14) + 14) % 14];
-      const bx = i * span - shift;
-      const bh = H * 0.07 * b[1];
-      ctx.fillStyle = 'rgba(70,85,150,.5)';
-      ctx.fillRect(bx, HORIZON() - bh, span * (0.5 + b[0] * 0.4), bh + 2);
-    }
+  // a little flock of birds
+  ctx.strokeStyle = 'rgba(40,40,60,.55)';
+  ctx.lineWidth = 2;
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 3; k++) {
+    const bx = ((G.phase * 38 + k * 170) % (W + 120)) - 60;
+    const by = HORIZON() * (0.3 + 0.12 * Math.sin(k * 2.1 + G.phase * 1.2));
+    const flap = Math.sin(G.phase * 9 + k) * 4;
+    ctx.beginPath();
+    ctx.moveTo(bx - 9, by - flap);
+    ctx.quadraticCurveTo(bx - 4, by + 3, bx, by);
+    ctx.quadraticCurveTo(bx + 4, by + 3, bx + 9, by - flap);
+    ctx.stroke();
   }
 
   ctx.save();
@@ -1441,7 +1517,7 @@ function render() {
   // floating texts
   for (const f of G.floats) {
     ctx.globalAlpha = clamp(f.life, 0, 1);
-    ctx.font = '800 22px "Baloo 2", "Comic Sans MS", sans-serif';
+    ctx.font = `800 ${f.size || 22}px "Baloo 2", "Comic Sans MS", sans-serif`;
     ctx.textAlign = 'center';
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.45)';
     ctx.strokeText(f.text, f.x, f.y);
@@ -1487,6 +1563,117 @@ function render() {
     ctx.fillStyle = '#ffd23e';
     ctx.beginPath(); ctx.arc(fc.x, fc.y, 7, 0, 7); ctx.fill();
   }
+
+  // FEVER: pulsing rainbow border + warm wash
+  if (G.fever > 0) {
+    const hue = (G.phase * 160) % 360;
+    ctx.fillStyle = `hsla(${hue}, 95%, 60%, .06)`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = `hsla(${hue}, 95%, 62%, ${0.35 + 0.25 * Math.sin(G.phase * 10)})`;
+    ctx.lineWidth = 12;
+    ctx.beginPath(); rrPath(6, 6, W - 12, H - 12, 26); ctx.stroke();
+  }
+
+  // white pop flash (fever start etc.)
+  if (G.flashT > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${clamp(G.flashT / 0.35, 0, 1) * 0.65})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  ctx.restore(); // crash-zoom transform
+}
+
+/* ---------- themed horizon backdrops ---------- */
+function drawBackdrop(ti, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  const hz = HORIZON();
+  const ridge = (amp, span, speed, color, sharp) => {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(-2, hz + 1);
+    const shift = G.dist * speed;
+    for (let x = 0; x <= W + W / 22; x += W / 22) {
+      let s = Math.sin((x + shift) / span);
+      if (sharp) s = Math.abs(s) * 1.7 - 0.7;
+      ctx.lineTo(x, hz - amp * (0.55 + 0.45 * s));
+    }
+    ctx.lineTo(W + 2, hz + 1);
+    ctx.closePath(); ctx.fill();
+  };
+  const wrapX = (frac, speed, pad) =>
+    ((frac * W - G.dist * speed) % (W + pad * 2) + W + pad * 2) % (W + pad * 2) - pad;
+
+  switch (ti) {
+    case 0: { // Sunny Meadows: rolling hills + hot-air balloon
+      ridge(H * 0.11, 260, 0.3, 'rgba(96,170,98,.5)');
+      ridge(H * 0.065, 150, 0.65, 'rgba(66,140,76,.6)');
+      const bx = wrapX(0.3, 0.5, 80);
+      const by = hz * 0.42 + Math.sin(G.phase * 0.8) * 8;
+      ctx.fillStyle = '#ff6e6e';
+      ctx.beginPath(); ctx.arc(bx, by, 26, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffd23e';
+      ctx.beginPath(); ctx.arc(bx, by, 26, -0.5, 0.9); ctx.lineTo(bx, by); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = 'rgba(80,60,40,.7)'; ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(bx - 12, by + 22); ctx.lineTo(bx - 7, by + 40);
+      ctx.moveTo(bx + 12, by + 22); ctx.lineTo(bx + 7, by + 40);
+      ctx.stroke();
+      ctx.fillStyle = '#8a5a30';
+      ctx.fillRect(bx - 9, by + 38, 18, 12);
+      break;
+    }
+    case 1: { // Desert Dunes: dunes + pyramids
+      const px = wrapX(0.55, 0.22, 160);
+      ctx.fillStyle = 'rgba(215,170,100,.75)';
+      ctx.beginPath();
+      ctx.moveTo(px - 90, hz + 1); ctx.lineTo(px, hz - H * 0.11); ctx.lineTo(px + 90, hz + 1);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(160,120,65,.75)';
+      ctx.beginPath();
+      ctx.moveTo(px, hz - H * 0.11); ctx.lineTo(px + 90, hz + 1); ctx.lineTo(px + 28, hz + 1);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(215,170,100,.6)';
+      ctx.beginPath();
+      ctx.moveTo(px - 200, hz + 1); ctx.lineTo(px - 145, hz - H * 0.06); ctx.lineTo(px - 90, hz + 1);
+      ctx.closePath(); ctx.fill();
+      ridge(H * 0.07, 320, 0.32, 'rgba(232,196,124,.55)');
+      ridge(H * 0.045, 180, 0.62, 'rgba(212,170,96,.65)');
+      break;
+    }
+    case 2: { // Snowy Peaks: jagged ice + aurora ribbons
+      ridge(H * 0.15, 210, 0.28, 'rgba(196,214,238,.6)', true);
+      ridge(H * 0.09, 130, 0.58, 'rgba(152,178,212,.65)', true);
+      for (let band = 0; band < 2; band++) {
+        ctx.strokeStyle = `hsla(${150 + band * 50}, 85%, 65%, .16)`;
+        ctx.lineWidth = 16;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        for (let x = 0; x <= W; x += W / 14) {
+          const y = hz * (0.28 + band * 0.1) + Math.sin(x / 70 + G.phase * 0.7 + band * 2) * 14;
+          if (x === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+      }
+      break;
+    }
+    case 3: { // Candy Land: rainbow + scoop hills
+      const rx = W * 0.28, rcols = ['#ff5e5e', '#ff9a3c', '#ffe14d', '#5ad845', '#54a9ff'];
+      ctx.lineWidth = 9;
+      rcols.forEach((c, i) => {
+        ctx.strokeStyle = c;
+        ctx.globalAlpha = alpha * 0.55;
+        ctx.beginPath();
+        ctx.arc(rx, hz + 30, hz * 0.62 - i * 9, Math.PI, 0);
+        ctx.stroke();
+      });
+      ctx.globalAlpha = alpha;
+      ridge(H * 0.1, 230, 0.32, 'rgba(255,160,205,.55)');
+      ridge(H * 0.06, 140, 0.64, 'rgba(245,118,180,.6)');
+      break;
+    }
+  }
+  ctx.restore();
 }
 
 const TRAIN_COLORS = ['#e8443a', '#3a7be8', '#9b59d0', '#1faa59', '#e8930c'];
