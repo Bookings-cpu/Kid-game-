@@ -45,7 +45,17 @@ button { font-family:inherit; }
   animation:titlebounce 2.4s ease-in-out infinite;
 }
 @keyframes titlebounce { 0%,100% { transform:translateY(0) rotate(-2deg);} 50% { transform:translateY(-10px) rotate(2deg);} }
-#menu-char { z-index:1; width:min(40vw,180px); height:auto; filter:drop-shadow(0 10px 12px rgba(0,0,0,.25)); }
+.char-stage { position:relative; z-index:1; display:flex; align-items:center; justify-content:center; }
+.menu-burst {
+  position:absolute; width:min(62vw,280px); height:min(62vw,280px); border-radius:50%;
+  background:repeating-conic-gradient(rgba(255,255,255,.28) 0deg 14deg, rgba(255,255,255,0) 14deg 28deg);
+  animation:burstspin 14s linear infinite;
+  -webkit-mask-image:radial-gradient(circle, #000 30%, transparent 70%);
+  mask-image:radial-gradient(circle, #000 30%, transparent 70%);
+}
+@keyframes burstspin { to { transform:rotate(360deg); } }
+#menu-char { position:relative; width:min(40vw,180px); height:auto; filter:drop-shadow(0 10px 12px rgba(0,0,0,.25)); animation:charbob 2.2s ease-in-out infinite; }
+@keyframes charbob { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-8px); } }
 
 /* ---------- buttons ---------- */
 .btn {
@@ -55,7 +65,13 @@ button { font-family:inherit; }
 }
 .btn:active { transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,.25); }
 .btn-big { font-size:23px; padding:15px 30px; width:min(86vw,330px); }
-.btn-play { background:linear-gradient(180deg,#ffb52e,#ff7a00); animation:pulse 1.6s ease-in-out infinite; }
+.btn-play { background:linear-gradient(180deg,#ffb52e,#ff7a00); animation:pulse 1.6s ease-in-out infinite; overflow:hidden; }
+.btn-play::after {
+  content:""; position:absolute; top:-50%; bottom:-50%; width:36px;
+  background:rgba(255,255,255,.45); transform:rotate(20deg);
+  animation:shine 2.6s ease-in-out infinite; left:-60px;
+}
+@keyframes shine { 0%, 55% { left:-60px; } 85%, 100% { left:120%; } }
 @keyframes pulse { 0%,100% { transform:scale(1);} 50% { transform:scale(1.06);} }
 .btn-green { background:linear-gradient(180deg,#5ad845,#2ca31e); }
 .btn-blue  { background:linear-gradient(180deg,#54a9ff,#2f6df0); }
@@ -90,6 +106,8 @@ button { font-family:inherit; }
 #hud-score { font-size:30px; font-weight:900; text-shadow:0 3px 0 rgba(0,0,0,.4); }
 #hud-mult { font-size:18px; font-weight:900; color:#ffd23e; text-shadow:0 2px 0 rgba(0,0,0,.4); animation:pulse 1s infinite; }
 .hud-coins { font-size:17px; }
+.bump { animation:coinbump .25s ease-out; }
+@keyframes coinbump { 0% { transform:scale(1); } 40% { transform:scale(1.25); } 100% { transform:scale(1); } }
 #hud-powerups { position:absolute; top:64px; right:14px; display:flex; flex-direction:column; gap:6px; }
 .pu-chip { background:rgba(20,16,60,.6); border-radius:14px; padding:4px 10px; font-size:15px; font-weight:700; min-width:84px; }
 .pu-bar { height:5px; background:rgba(255,255,255,.25); border-radius:3px; margin-top:3px; overflow:hidden; }

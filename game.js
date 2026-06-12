@@ -15,6 +15,13 @@ const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
 const fmt = (n) => Math.floor(n).toLocaleString('en-GB');
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
+function bumpEl(id) {
+  const el = $(id).parentElement;
+  el.classList.remove('bump');
+  void el.offsetWidth; // restart the animation
+  el.classList.add('bump');
+}
+
 function toast(msg, gold) {
   const el = document.createElement('div');
   el.className = 'toast' + (gold ? ' gold' : '');
@@ -653,7 +660,8 @@ const BASE_Y = () => H * 0.86;
 function project(laneF, z) {
   const p = CAMD / (z + CAMD);
   return {
-    x: W / 2 + laneF * LANE_W() * p,
+    // the camera trails the player half a lane — parallax like a real 3D chase cam
+    x: W / 2 + (laneF - G.camX) * LANE_W() * p,
     y: HORIZON() + (BASE_Y() - HORIZON()) * p,
     p,
   };
@@ -678,10 +686,10 @@ const G = {
   laneF: 0, laneTarget: 0,
   jumpT: -1, slideT: -1,
   speed: 0, dist: 0, score: 0, runCoins: 0, mult: 1,
-  obstacles: [], coins: [], pickups: [], letters: [], decor: [], parts: [], floats: [],
+  obstacles: [], coins: [], pickups: [], letters: [], decor: [], parts: [], floats: [], flyCoins: [],
   spawnAt: 0, decorAt: 0,
   pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
-  boardT: 0, themeIdx: 0,
+  boardT: 0, themeIdx: 0, camX: 0, roll: 0,
   revives: 0, invinc: 0, shake: 0, dieT: 0, phase: 0,
   runMissions: [], doubled: false, lastSafe: 1,
   combo: 0, comboT: 0,
@@ -694,10 +702,10 @@ function startRun() {
   Object.assign(G, {
     state: 'playing', laneF: 0, laneTarget: 0, jumpT: -1, slideT: -1,
     speed: 300, dist: 0, score: 0, runCoins: 0, mult: 1,
-    obstacles: [], coins: [], pickups: [], letters: [], decor: [], parts: [], floats: [],
+    obstacles: [], coins: [], pickups: [], letters: [], decor: [], parts: [], floats: [], flyCoins: [],
     spawnAt: 300, decorAt: 0,
     pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
-    boardT: 0, themeIdx: 0,
+    boardT: 0, themeIdx: 0, camX: 0, roll: 0,
     revives: 0, invinc: 1.5, shake: 0, dieT: 0, phase: 0,
     runMissions: [], doubled: false, lastSafe: 1,
     combo: 0, comboT: 0,
@@ -748,13 +756,32 @@ function spawnChunk() {
   const safeLane = safe.length ? pick(safe) : 0;
   G.lastSafe = safeLane;
 
-  // coin trail on a passable lane
-  if (Math.random() < 0.8) {
-    const n = irand(4, 8);
+  // coin trails: straight lines, zigzags across lanes, or arcs over hurdles
+  const trailRoll = Math.random();
+  if (trailRoll < 0.5) {
+    const n = irand(6, 10);
     const claneOptions = pat.map((k, i) => i - 1).filter(l => pat[l + 1] !== 'train');
     const clane = claneOptions.length ? pick(claneOptions) : safeLane;
     for (let i = 0; i < n; i++) {
-      G.coins.push({ laneF: clane, z: SPAWN_Z + 130 + i * 46, spin: rand(0, 6) });
+      G.coins.push({ laneF: clane, z: SPAWN_Z + 130 + i * 46, spin: rand(0, 6), h: 0 });
+    }
+  } else if (trailRoll < 0.75) {
+    // zigzag sweep across all three lanes
+    const dir = Math.random() < 0.5 ? 1 : -1;
+    for (let i = 0; i < 9; i++) {
+      const lf = -dir + dir * 2 * Math.abs(Math.sin(i * 0.39));
+      G.coins.push({ laneF: lf, z: SPAWN_Z + 320 + i * 52, spin: rand(0, 6), h: 0 });
+    }
+  }
+  // golden arc over a hurdle — jump to grab them all!
+  const hurdleLane = pat.findIndex(k => k === 'hurdle') - 1;
+  if (hurdleLane >= -1 && pat.includes('hurdle') && Math.random() < 0.6) {
+    const hz = SPAWN_Z + 30;
+    for (let i = 0; i < 5; i++) {
+      G.coins.push({
+        laneF: hurdleLane, z: hz - 60 + i * 30, spin: rand(0, 6),
+        h: Math.sin((i / 4) * Math.PI) * 0.9,
+      });
     }
   }
   // occasional power-up on the safe lane (sometimes a mystery box!)
@@ -769,11 +796,18 @@ function spawnChunk() {
   }
 }
 
+const THEME_DECOR = [
+  ['tree', 'house', 'tree'],
+  ['cactus', 'rock', 'cactus'],
+  ['pine', 'snowman', 'pine'],
+  ['lolly', 'cane', 'lolly'],
+];
+
 function spawnDecor() {
   const side = Math.random() < 0.5 ? -1 : 1;
   G.decor.push({
     laneF: side * rand(1.9, 2.8), z: SPAWN_Z,
-    kind: Math.random() < 0.5 ? 'tree' : 'house',
+    kind: pick(THEME_DECOR[G.themeIdx % THEME_DECOR.length]),
     hue: irand(0, 4),
   });
 }
@@ -855,11 +889,21 @@ function update(dt) {
   G.score += dz * 0.12 * G.mult * scoreBonus;
   missionEvent('score', Math.floor(G.score));
 
-  // lane movement
+  // lane movement + chase camera
   G.laneF = lerp(G.laneF, G.laneTarget, Math.min(1, dt * 12));
+  G.camX = lerp(G.camX, G.laneF * 0.55, Math.min(1, dt * 8));
+  G.roll = lerp(G.roll, (G.laneTarget - G.laneF) * 0.045, Math.min(1, dt * 10));
 
-  // jump / slide timers
-  if (G.jumpT >= 0) { G.jumpT += dt; if (G.jumpT > JUMP_DUR) G.jumpT = -1; }
+  // jump / slide timers (with a landing puff)
+  if (G.jumpT >= 0) {
+    G.jumpT += dt;
+    if (G.jumpT > JUMP_DUR) {
+      G.jumpT = -1;
+      const pr = project(G.laneF, 0);
+      burst(pr.x, pr.y - 6, 'rgba(230,225,210,.9)', 7);
+      G.shake = Math.max(G.shake, 2.5);
+    }
+  }
   if (G.slideT >= 0) { G.slideT += dt; if (G.slideT > SLIDE_DUR) G.slideT = -1; }
   if (G.invinc > 0) G.invinc -= dt;
 
@@ -876,7 +920,7 @@ function update(dt) {
   G.spawnAt -= dz;
   if (G.spawnAt <= 0) {
     spawnChunk();
-    G.spawnAt = rand(360, 560) * clamp(1 - G.dist / 14000, 0.55, 1); // chunks get denser
+    G.spawnAt = rand(320, 500) * clamp(1 - G.dist / 14000, 0.55, 1); // chunks get denser
   }
   G.decorAt -= dz;
   if (G.decorAt <= 0) { spawnDecor(); G.decorAt = rand(90, 200); }
@@ -938,8 +982,18 @@ function update(dt) {
   const jumping = G.jumpT >= 0 && Math.sin((G.jumpT / JUMP_DUR) * Math.PI) > 0.3;
   const sliding = G.slideT >= 0;
 
-  // collect coins
+  // coins flying to the wallet
+  for (const fc of G.flyCoins) {
+    fc.t += dt * 2.4;
+    fc.x = lerp(fc.x, W - 70, fc.t * 0.22);
+    fc.y = lerp(fc.y, 30, fc.t * 0.22);
+    if (fc.t >= 1) bumpEl('hud-coins');
+  }
+  G.flyCoins = G.flyCoins.filter(fc => fc.t < 1);
+
+  // collect coins (high arc coins need a jump!)
   for (const c of G.coins) {
+    if (c.h > 0.3 && !jumping) continue;
     if (c.z < HITZ + 14 && c.z > -24 && Math.abs(c.laneF - G.laneF) < 0.6) {
       c.taken = true;
       const v = Math.round(1 * (1 + (charDef().bonus.coin || 0)) * G.mult * (S.doubler ? 2 : 1));
@@ -950,6 +1004,7 @@ function update(dt) {
       const pr = project(c.laneF, Math.max(0, c.z));
       addFloat(`+${v}`, pr.x, pr.y - 60, '#ffd23e');
       burst(pr.x, pr.y - 40, '#ffd23e', 5);
+      G.flyCoins.push({ x: pr.x, y: pr.y - 50, t: 0 });
       // combo chain — keep grabbing coins for bonus bursts
       G.combo++; G.comboT = 1.6;
       if (G.combo % 10 === 0) {
@@ -1271,6 +1326,12 @@ function render() {
 
   ctx.save();
   if (G.shake > 0) ctx.translate(rand(-G.shake, G.shake), rand(-G.shake, G.shake));
+  // subtle world roll when swerving lanes
+  if (Math.abs(G.roll) > 0.001) {
+    ctx.translate(W / 2, H);
+    ctx.rotate(G.roll);
+    ctx.translate(-W / 2, -H);
+  }
 
   // ground with depth shading — colours follow the rotating world theme
   const t0 = THEMES[i0 % THEMES.length], t1 = THEMES[i1 % THEMES.length];
@@ -1418,6 +1479,14 @@ function render() {
   vg.addColorStop(1, 'rgba(0,0,0,.22)');
   ctx.fillStyle = vg;
   ctx.fillRect(0, 0, W, H);
+
+  // coins flying up to the wallet counter
+  for (const fc of G.flyCoins) {
+    ctx.fillStyle = '#c98a00';
+    ctx.beginPath(); ctx.arc(fc.x, fc.y, 9, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffd23e';
+    ctx.beginPath(); ctx.arc(fc.x, fc.y, 7, 0, 7); ctx.fill();
+  }
 }
 
 const TRAIN_COLORS = ['#e8443a', '#3a7be8', '#9b59d0', '#1faa59', '#e8930c'];
@@ -1595,7 +1664,7 @@ function drawCoin(c) {
   const pr = project(c.laneF, Math.max(0.001, c.z));
   const r = LANE_W() * 0.16 * pr.p;
   const sq = Math.abs(Math.cos(c.spin));
-  const y = pr.y - r * 1.6 - Math.sin(c.spin * 1.3) * r * 0.25;
+  const y = pr.y - r * 1.6 - Math.sin(c.spin * 1.3) * r * 0.25 - (c.h || 0) * H * 0.17 * pr.p;
   // soft glow
   ctx.fillStyle = 'rgba(255,220,80,.22)';
   ctx.beginPath(); ctx.arc(pr.x, y, r * 1.9, 0, 7); ctx.fill();
@@ -1659,34 +1728,114 @@ function drawDecor(d) {
   if (d.z > ZMAX) return;
   const pr = project(d.laneF, Math.max(0.001, d.z));
   const s = LANE_W() * 0.9 * pr.p;
-  if (d.kind === 'tree') {
-    ctx.fillStyle = '#7a4a21';
-    ctx.fillRect(pr.x - s * 0.06, pr.y - s * 0.5, s * 0.12, s * 0.5);
-    ctx.fillStyle = ['#2e9e44', '#37b052', '#1f8a3c', '#46c060', '#2a9648'][d.hue];
-    ctx.beginPath();
-    ctx.arc(pr.x, pr.y - s * 0.72, s * 0.34, 0, 7);
-    ctx.arc(pr.x - s * 0.2, pr.y - s * 0.5, s * 0.26, 0, 7);
-    ctx.arc(pr.x + s * 0.2, pr.y - s * 0.5, s * 0.26, 0, 7);
-    ctx.fill();
-  } else {
-    const cols = ['#ffb46b', '#7fc8ff', '#ff9aa8', '#c9a6ff', '#ffe08a'];
-    ctx.fillStyle = cols[d.hue];
-    ctx.fillRect(pr.x - s * 0.35, pr.y - s * 0.75, s * 0.7, s * 0.75);
-    ctx.fillStyle = '#d2453a';
-    ctx.beginPath();
-    ctx.moveTo(pr.x - s * 0.45, pr.y - s * 0.75);
-    ctx.lineTo(pr.x, pr.y - s * 1.05);
-    ctx.lineTo(pr.x + s * 0.45, pr.y - s * 0.75);
-    ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#fff7d6';
-    ctx.fillRect(pr.x - s * 0.2, pr.y - s * 0.58, s * 0.16, s * 0.16);
-    ctx.fillRect(pr.x + s * 0.06, pr.y - s * 0.58, s * 0.16, s * 0.16);
+  const x = pr.x, y = pr.y;
+  switch (d.kind) {
+    case 'tree':
+      ctx.fillStyle = '#7a4a21';
+      ctx.fillRect(x - s * 0.06, y - s * 0.5, s * 0.12, s * 0.5);
+      ctx.fillStyle = ['#2e9e44', '#37b052', '#1f8a3c', '#46c060', '#2a9648'][d.hue];
+      ctx.beginPath();
+      ctx.arc(x, y - s * 0.72, s * 0.34, 0, 7);
+      ctx.arc(x - s * 0.2, y - s * 0.5, s * 0.26, 0, 7);
+      ctx.arc(x + s * 0.2, y - s * 0.5, s * 0.26, 0, 7);
+      ctx.fill();
+      break;
+    case 'house': {
+      const cols = ['#ffb46b', '#7fc8ff', '#ff9aa8', '#c9a6ff', '#ffe08a'];
+      ctx.fillStyle = cols[d.hue];
+      ctx.fillRect(x - s * 0.35, y - s * 0.75, s * 0.7, s * 0.75);
+      ctx.fillStyle = '#d2453a';
+      ctx.beginPath();
+      ctx.moveTo(x - s * 0.45, y - s * 0.75);
+      ctx.lineTo(x, y - s * 1.05);
+      ctx.lineTo(x + s * 0.45, y - s * 0.75);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = '#fff7d6';
+      ctx.fillRect(x - s * 0.2, y - s * 0.58, s * 0.16, s * 0.16);
+      ctx.fillRect(x + s * 0.06, y - s * 0.58, s * 0.16, s * 0.16);
+      break;
+    }
+    case 'cactus':
+      ctx.fillStyle = '#3f9e4e';
+      rr(x - s * 0.09, y - s * 0.85, s * 0.18, s * 0.85, s * 0.09);
+      rr(x - s * 0.32, y - s * 0.62, s * 0.13, s * 0.3, s * 0.06);
+      rr(x + s * 0.19, y - s * 0.72, s * 0.13, s * 0.34, s * 0.06);
+      ctx.fillRect(x - s * 0.3, y - s * 0.38, s * 0.2, s * 0.08);
+      ctx.fillRect(x + s * 0.1, y - s * 0.44, s * 0.2, s * 0.08);
+      break;
+    case 'rock':
+      ctx.fillStyle = ['#b59a7c', '#a78d70', '#c0a585', '#9c8266', '#b29478'][d.hue];
+      ctx.beginPath();
+      ctx.ellipse(x, y - s * 0.16, s * 0.32, s * 0.18, 0, 0, 7);
+      ctx.ellipse(x - s * 0.12, y - s * 0.28, s * 0.18, s * 0.14, 0, 0, 7);
+      ctx.fill();
+      break;
+    case 'pine':
+      ctx.fillStyle = '#6b4423';
+      ctx.fillRect(x - s * 0.05, y - s * 0.25, s * 0.1, s * 0.25);
+      for (let i = 0; i < 3; i++) {
+        const ly = y - s * (0.25 + i * 0.26), lw = s * (0.42 - i * 0.1);
+        ctx.fillStyle = '#1f6e3e';
+        ctx.beginPath();
+        ctx.moveTo(x - lw, ly); ctx.lineTo(x, ly - s * 0.34); ctx.lineTo(x + lw, ly);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = 'rgba(255,255,255,.85)';
+        ctx.beginPath();
+        ctx.moveTo(x - lw, ly); ctx.lineTo(x - lw * 0.55, ly - s * 0.1);
+        ctx.lineTo(x + lw * 0.2, ly - s * 0.05); ctx.lineTo(x + lw, ly);
+        ctx.closePath(); ctx.fill();
+      }
+      break;
+    case 'snowman':
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(x, y - s * 0.2, s * 0.24, 0, 7);
+      ctx.arc(x, y - s * 0.52, s * 0.17, 0, 7);
+      ctx.fill();
+      ctx.fillStyle = '#222';
+      ctx.beginPath();
+      ctx.arc(x - s * 0.06, y - s * 0.56, s * 0.025, 0, 7);
+      ctx.arc(x + s * 0.06, y - s * 0.56, s * 0.025, 0, 7);
+      ctx.fill();
+      ctx.fillStyle = '#ff8c1a';
+      ctx.beginPath();
+      ctx.moveTo(x, y - s * 0.52); ctx.lineTo(x + s * 0.14, y - s * 0.5); ctx.lineTo(x, y - s * 0.47);
+      ctx.closePath(); ctx.fill();
+      break;
+    case 'cane': {
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = '#fff';
+      ctx.lineWidth = s * 0.13;
+      ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x, y - s * 0.7);
+      ctx.arc(x + s * 0.14, y - s * 0.7, s * 0.14, Math.PI, 0);
+      ctx.stroke();
+      ctx.strokeStyle = '#e8443a';
+      ctx.setLineDash([s * 0.1, s * 0.1]);
+      ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x, y - s * 0.7);
+      ctx.arc(x + s * 0.14, y - s * 0.7, s * 0.14, Math.PI, 0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      break;
+    }
+    case 'lolly': {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(x - s * 0.03, y - s * 0.55, s * 0.06, s * 0.55);
+      const cols2 = ['#ff6ec4', '#54a9ff', '#5ad845', '#ffd23e', '#c97aff'];
+      ctx.fillStyle = cols2[d.hue];
+      ctx.beginPath(); ctx.arc(x, y - s * 0.72, s * 0.22, 0, 7); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.8)';
+      ctx.lineWidth = s * 0.05;
+      ctx.beginPath(); ctx.arc(x, y - s * 0.72, s * 0.13, 0.5, 4.5); ctx.stroke();
+      break;
+    }
   }
 }
 
 function drawPlayer() {
   const pr = project(G.laneF, 0);
-  const size = LANE_W() * 0.52;
+  const size = LANE_W() * 0.58;
   const jumpH = G.jumpT >= 0 ? Math.sin((G.jumpT / JUMP_DUR) * Math.PI) : 0;
   const boardLift = G.boardT > 0 ? size * 0.14 + Math.sin(G.phase * 6) * size * 0.04 : 0;
   const y = pr.y - jumpH * H * 0.2 - boardLift;
