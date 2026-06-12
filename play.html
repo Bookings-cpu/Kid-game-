@@ -562,14 +562,20 @@ window.R3D = (() => {
   const LANE = 2;       // lane spacing in world units
 
   let renderer, scene, camera, W = 0, H = 0;
-  let ground, trackBed, hazeRing;
+  let ground, trackBed;
+  let skyCanvas, skyCtx, skyTexture, sunSprite;
   const sleepers = [], posts = [], railMats = [];
+  const clouds = [], ambient = [], poles = [], gantries = [];
   let player, guard, shieldBall, board, blob;
   const pools = new Map();
   const sprites = new Map();
   let SKY = new THREE.Color('#bfe6ff');
 
   /* ---------- helpers ---------- */
+  const hash01 = (n) => {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  };
   const mat = (color, opts) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.85, metalness: 0 }, opts || {}));
   const MATS = {};
   const cmat = (color) => (MATS[color] = MATS[color] || mat(color));
@@ -1046,6 +1052,130 @@ window.R3D = (() => {
     blob.position.y = 0.135;
     scene.add(blob);
 
+    /* ----- sky: live gradient + sun + 3D clouds ----- */
+    skyCanvas = document.createElement('canvas');
+    skyCanvas.width = 2; skyCanvas.height = 256;
+    skyCtx = skyCanvas.getContext('2d');
+    skyTexture = new THREE.CanvasTexture(skyCanvas);
+    scene.background = skyTexture;
+
+    sunSprite = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: spriteTex((x, s) => {
+        const g = x.createRadialGradient(s / 2, s / 2, s * 0.08, s / 2, s / 2, s / 2);
+        g.addColorStop(0, 'rgba(255,246,200,1)');
+        g.addColorStop(0.25, 'rgba(255,240,170,.85)');
+        g.addColorStop(1, 'rgba(255,240,170,0)');
+        x.fillStyle = g;
+        x.fillRect(0, 0, s, s);
+      }),
+      transparent: true, depthWrite: false,
+    }));
+    sunSprite.scale.set(16, 16, 1);
+    sunSprite.position.set(18, 15, -55);
+    scene.add(sunSprite);
+
+    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, fog: false });
+    for (let i = 0; i < 7; i++) {
+      const cg = new THREE.Group();
+      for (let b = 0; b < 3; b++) {
+        const puff = new THREE.Mesh(new THREE.SphereGeometry(1.1 - b * 0.25, 10, 8), cloudMat);
+        puff.scale.y = 0.55;
+        puff.position.set((b - 1) * 1.1, b % 2 ? 0.3 : 0, 0);
+        cg.add(puff);
+      }
+      cg.position.set((hash01(i * 7) - 0.5) * 60, 9 + hash01(i * 3) * 7, -20 - hash01(i * 5) * 35);
+      cg.scale.setScalar(1 + hash01(i * 11) * 1.6);
+      cg.userData.spd = 0.25 + hash01(i * 13) * 0.5;
+      scene.add(cg);
+      clouds.push(cg);
+    }
+
+    /* ----- distant mountain backdrop ----- */
+    const mountainTex = spriteTex((x, s) => {
+      x.clearRect(0, 0, s, s);
+      for (const [col, hgt, n, yo] of [['rgba(116,140,196,1)', 0.5, 5, 0], ['rgba(86,108,168,1)', 0.34, 7, 0.05]]) {
+        x.fillStyle = col;
+        x.beginPath();
+        x.moveTo(0, s);
+        for (let i = 0; i <= n; i++) {
+          x.lineTo((i / n) * s, s - s * hgt * (0.5 + 0.5 * Math.abs(Math.sin(i * 2.7 + n))) - s * yo);
+          x.lineTo(((i + 0.5) / n) * s, s);
+        }
+        x.closePath(); x.fill();
+      }
+    }, 512);
+    const mountains = new THREE.Mesh(new THREE.PlaneGeometry(220, 26),
+      new THREE.MeshBasicMaterial({ map: mountainTex, transparent: true, fog: false, depthWrite: false, opacity: 0.85 }));
+    mountains.position.set(0, 8, -58);
+    scene.add(mountains);
+
+    /* ----- continuous trackside scenery rows ----- */
+    const AMBIENT_KINDS = ['tree', 'tree', 'pine', 'house', 'tree', 'rock', 'tree', 'house'];
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 16; i++) { // near row
+        const kind = AMBIENT_KINDS[Math.floor(hash01(i * 17 + side * 3) * AMBIENT_KINDS.length)];
+        const m = makeDecor(kind);
+        const sc = 0.9 + hash01(i * 23 + side) * 0.7;
+        m.scale.setScalar(sc);
+        m.userData.amb = { side, i, spacing: 4.2, x: side * (5.8 + hash01(i * 31 + side) * 3.5) };
+        scene.add(m);
+        ambient.push(m);
+      }
+      for (let i = 0; i < 12; i++) { // far row, bigger
+        const kind = AMBIENT_KINDS[Math.floor(hash01(i * 41 + side * 7) * AMBIENT_KINDS.length)];
+        const m = makeDecor(kind);
+        m.scale.setScalar(1.6 + hash01(i * 43 + side) * 1.1);
+        m.userData.amb = { side, i, spacing: 5.6, x: side * (11 + hash01(i * 47 + side) * 5) };
+        scene.add(m);
+        ambient.push(m);
+      }
+    }
+
+    /* ----- telegraph poles: near-field speed cue ----- */
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 11; i++) {
+        const pg = new THREE.Group();
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.09, 2.6), cmat('#6b4a2c'));
+        post.position.y = 1.3;
+        post.castShadow = true;
+        pg.add(post);
+        const bar = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.07, 0.07), cmat('#6b4a2c'));
+        bar.position.y = 2.35;
+        pg.add(bar);
+        pg.userData.amb = { side, i, spacing: 6.2, x: side * 4.4 };
+        scene.add(pg);
+        poles.push(pg);
+      }
+    }
+
+    /* ----- overhead gantries to rush beneath ----- */
+    for (let i = 0; i < 4; i++) {
+      const gg = new THREE.Group();
+      const gm = cmat('#46557a');
+      for (const s of [-1, 1]) {
+        const leg = new THREE.Mesh(new THREE.BoxGeometry(0.22, 3.6, 0.22), gm);
+        leg.position.set(s * 4.1, 1.8, 0);
+        gg.add(leg);
+      }
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.4, 0.5), gm);
+      beam.position.y = 3.6;
+      gg.add(beam);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.5),
+        new THREE.MeshBasicMaterial({ map: spriteTex((x, s) => {
+          x.fillStyle = '#ffd23e';
+          x.beginPath(); x.roundRect(0, s * 0.3, s, s * 0.4, s * 0.08); x.fill();
+          x.fillStyle = '#5b3a00';
+          x.font = `800 ${s * 0.22}px "Baloo 2","Comic Sans MS",sans-serif`;
+          x.textAlign = 'center'; x.textBaseline = 'middle';
+          x.fillText('RASCAL EXPRESS', s / 2, s / 2);
+        }, 256), transparent: true }));
+      sign.position.set(0, 3.6, 0.3);
+      gg.add(sign);
+      gg.userData.amb = { side: 0, i, spacing: 19, x: 0 };
+      scene.add(gg);
+      gantries.push(gg);
+    }
+
     return true;
   }
 
@@ -1092,8 +1222,14 @@ window.R3D = (() => {
     ensureChar(o.charDef);
 
     // sky / fog / ground colours follow the theme + day cycle
+    const sg = skyCtx.createLinearGradient(0, 0, 0, 256);
+    sg.addColorStop(0, o.skyTop);
+    sg.addColorStop(0.75, o.skyBot);
+    sg.addColorStop(1, o.skyBot);
+    skyCtx.fillStyle = sg;
+    skyCtx.fillRect(0, 0, 2, 256);
+    skyTexture.needsUpdate = true;
     _c1.setStyle(o.skyBot);
-    scene.background = _c1.clone();
     scene.fog.color.copy(_c1);
     _c2.setStyle(o.ground);
     ground.material.color.copy(_c2);
@@ -1118,6 +1254,23 @@ window.R3D = (() => {
     for (let i = 0; i < sleepers.length; i++) sleepers[i].position.z = -(i * 1.42) + zoff + 1.5;
     const poff = (G.dist * 10 * K) % 2.6;
     for (let i = 0; i < posts.length; i++) posts[i].position.z = -(Math.floor(i / 2) * 2.6) + poff + 1.5;
+
+    // scroll the ambient world: scenery rows, poles, gantries
+    const dz = G.dist * 10 * K;
+    const scroll = (m) => {
+      const a = m.userData.amb;
+      m.position.x = a.x;
+      m.position.z = -(a.i * a.spacing) + (dz % a.spacing) + 2;
+    };
+    for (const m of ambient) scroll(m);
+    for (const m of poles) scroll(m);
+    for (const m of gantries) scroll(m);
+    // clouds drift gently
+    for (const c of clouds) {
+      c.position.x += Math.sin(G.phase * 0.1) * 0; // anchored
+      c.position.z += c.userData.spd * 0.016;
+      if (c.position.z > 8) c.position.z = -55;
+    }
 
     // ----- entities -----
     for (const ob of G.obstacles) {
@@ -3777,6 +3930,7 @@ function render3D() {
   R3D.render({
     G,
     charDef: charDef(),
+    skyTop: lerpColor(SKIES[i0][0], SKIES[i1][0], ft),
     skyBot: lerpColor(SKIES[i0][1], SKIES[i1][1], ft),
     ground: lerpColor(t0.ground[0], t1.ground[0], ft),
     huntWord: HUNT_WORD,

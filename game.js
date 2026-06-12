@@ -2563,6 +2563,7 @@ function render3D() {
   R3D.render({
     G,
     charDef: charDef(),
+    skyTop: lerpColor(SKIES[i0][0], SKIES[i1][0], ft),
     skyBot: lerpColor(SKIES[i0][1], SKIES[i1][1], ft),
     ground: lerpColor(t0.ground[0], t1.ground[0], ft),
     huntWord: HUNT_WORD,
