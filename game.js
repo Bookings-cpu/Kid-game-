@@ -1073,7 +1073,7 @@ function update(dt) {
   // THE moment: beating your own record live, mid-run
   if (!G.bestBeaten && S.best > 200 && G.score > S.best) {
     G.bestBeaten = true;
-    addFloat('🏆 NEW BEST!! KEEP GOING!!', W / 2, H * 0.3, '#ffd23e', 38);
+    addFloat('🏆 NEW BEST!!', W / 2, H * 0.3, '#ffd23e', 38);
     AudioSys.sfx('mission');
     G.flashT = Math.max(G.flashT, 0.25);
     const pr = project(G.laneF, 0);
@@ -1938,12 +1938,19 @@ function render() {
   // floating texts
   for (const f of G.floats) {
     ctx.globalAlpha = clamp(f.life, 0, 1);
-    ctx.font = `800 ${f.size || 22}px "Baloo 2", "Comic Sans MS", sans-serif`;
+    let fs = f.size || 22;
+    ctx.font = `800 ${fs}px "Baloo 2", "Comic Sans MS", sans-serif`;
+    // never let text run off the screen — shrink to fit
+    const tw = ctx.measureText(f.text).width;
+    if (tw > W * 0.92) {
+      fs = Math.max(13, fs * (W * 0.92) / tw);
+      ctx.font = `800 ${fs}px "Baloo 2", "Comic Sans MS", sans-serif`;
+    }
     ctx.textAlign = 'center';
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.45)';
-    ctx.strokeText(f.text, f.x, f.y);
+    ctx.strokeText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
     ctx.fillStyle = f.color;
-    ctx.fillText(f.text, f.x, f.y);
+    ctx.fillText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2650,12 +2657,19 @@ function render3D() {
   // floating texts
   for (const f of G.floats) {
     ctx.globalAlpha = clamp(f.life, 0, 1);
-    ctx.font = `800 ${f.size || 22}px "Baloo 2", "Comic Sans MS", sans-serif`;
+    let fs = f.size || 22;
+    ctx.font = `800 ${fs}px "Baloo 2", "Comic Sans MS", sans-serif`;
+    // never let text run off the screen — shrink to fit
+    const tw = ctx.measureText(f.text).width;
+    if (tw > W * 0.92) {
+      fs = Math.max(13, fs * (W * 0.92) / tw);
+      ctx.font = `800 ${fs}px "Baloo 2", "Comic Sans MS", sans-serif`;
+    }
     ctx.textAlign = 'center';
     ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.45)';
-    ctx.strokeText(f.text, f.x, f.y);
+    ctx.strokeText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
     ctx.fillStyle = f.color;
-    ctx.fillText(f.text, f.x, f.y);
+    ctx.fillText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
   }
   ctx.globalAlpha = 1;
 
@@ -2755,7 +2769,7 @@ function renderShop() {
   gear.innerHTML = '';
   const gearItems = [
     {
-      emoji: '🛹', name: `Hoverboard (you have ${fmt(S.hoverboards)})`,
+      emoji: '🛹', name: `Hoverboard ×${fmt(S.hoverboards)}`,
       desc: 'Press 🛹 in a run — crash-proof for 30s!',
       label: `🪙 ${fmt(HOVERBOARD_PRICE)}`, cls: 'btn-yellow',
       buy: () => {
@@ -2765,7 +2779,7 @@ function renderShop() {
       },
     },
     {
-      emoji: '🎁', name: `Mystery Box (you have ${fmt(S.boxes)})`,
+      emoji: '🎁', name: `Mystery Box ×${fmt(S.boxes)}`,
       desc: 'Random surprise: coins, boards… or the JACKPOT!',
       label: `🪙 ${fmt(BOX_PRICE)}`, cls: 'btn-yellow',
       buy: () => {

@@ -65,6 +65,7 @@ button { font-family:inherit; }
   border:none; cursor:pointer; color:#fff; font-weight:800; border-radius:18px;
   padding:12px 22px; font-size:19px; box-shadow:0 5px 0 rgba(0,0,0,.25);
   transition:transform .08s, box-shadow .08s; position:relative; z-index:1;
+  line-height:1.15; max-width:100%; overflow-wrap:break-word;
 }
 .btn:active { transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,.25); }
 .btn-big { font-size:23px; padding:15px 30px; width:min(86vw,330px); }
@@ -134,10 +135,11 @@ button { font-family:inherit; }
   background:rgba(255,255,255,.1); border-radius:18px; padding:14px; margin-bottom:10px;
   display:flex; align-items:center; gap:12px; justify-content:space-between;
 }
-.card-emoji { font-size:34px; }
-.card-info { flex:1; display:flex; flex-direction:column; }
-.card-info b { font-size:18px; }
-.card-info span { font-size:14px; opacity:.8; }
+.card-emoji { font-size:34px; flex-shrink:0; }
+.card-info { flex:1; display:flex; flex-direction:column; min-width:0; }
+.card-info b { font-size:18px; overflow-wrap:break-word; }
+.card-info span { font-size:14px; opacity:.8; overflow-wrap:break-word; }
+.card > .btn { flex-shrink:0; }
 .ad-card { border:2px dashed rgba(255,255,255,.4); }
 .stats-card { display:block; font-size:16px; line-height:1.9; }
 
@@ -160,7 +162,9 @@ button { font-family:inherit; }
 
 /* missions */
 .mission-card { flex-direction:column; align-items:stretch; gap:8px; }
-.mission-top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+.mission-top { display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+.mission-top b { min-width:0; overflow-wrap:break-word; }
+.mission-top .btn { flex-shrink:0; }
 .mission-bar { height:12px; background:rgba(255,255,255,.2); border-radius:8px; overflow:hidden; }
 .mission-bar > i { display:block; height:100%; background:linear-gradient(90deg,#5ad845,#b8f547); border-radius:8px; transition:width .4s; }
 .mission-prog { font-size:13px; opacity:.85; text-align:right; }
@@ -179,7 +183,9 @@ button { font-family:inherit; }
   animation:pop .25s ease-out;
 }
 @keyframes pop { from { transform:scale(.7); opacity:0; } to { transform:scale(1); opacity:1; } }
-.dialog h2 { font-size:27px; text-shadow:0 3px 0 rgba(0,0,0,.3); }
+.dialog h2 { font-size:27px; text-shadow:0 3px 0 rgba(0,0,0,.3); max-width:100%; overflow-wrap:break-word; }
+.dialog { word-break:normal; }
+.toast { max-width:88vw; text-align:center; }
 
 #continue-ring {
   width:84px; height:84px; border-radius:50%; border:6px solid #ffd23e;
@@ -192,7 +198,8 @@ button { font-family:inherit; }
 .newbest { font-size:21px; color:#ffd23e; font-weight:900; animation:pulse .8s infinite; }
 #over-missions { width:100%; }
 .rival-card { width:100%; background:rgba(255,210,62,.12); border:2px dashed rgba(255,210,62,.4); border-radius:14px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
-.rival-top { display:flex; justify-content:space-between; gap:8px; font-size:15px; }
+.rival-top { display:flex; justify-content:space-between; gap:8px; font-size:15px; flex-wrap:wrap; }
+.rival-top span { min-width:0; overflow-wrap:break-word; }
 .over-mission { background:rgba(90,216,69,.18); border-radius:12px; padding:8px 12px; margin-bottom:6px; font-size:15px; }
 
 /* ad modal */
@@ -276,4 +283,22 @@ button { font-family:inherit; }
   .game-title { font-size:13vw; }
   #menu-char { width:30vw; }
   .btn-round { width:62px; height:62px; font-size:23px; }
+}
+
+/* small phones: scale the whole UI down so nothing ever crowds or breaks */
+@media (max-width:374px) {
+  .card { padding:11px; gap:9px; }
+  .card-emoji { font-size:26px; }
+  .card-info b { font-size:15px; }
+  .card-info span { font-size:12.5px; }
+  .btn { font-size:16px; padding:10px 15px; }
+  .btn-big { font-size:19px; padding:13px 18px; }
+  .panel-head h2 { font-size:22px; }
+  .dialog { padding:18px 14px; gap:9px; }
+  .dialog h2 { font-size:22px; }
+  .over-row { font-size:16px; }
+  .pill { font-size:15px; padding:6px 12px; }
+  .section-title { font-size:16px; }
+  .hunt-tile { width:32px; height:38px; font-size:18px; }
+  #over-stars { font-size:30px; }
 }
