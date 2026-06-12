@@ -9,9 +9,19 @@
 const $ = (id) => document.getElementById(id);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const lerp = (a, b, t) => a + (b - a) * t;
-const rand = (a, b) => a + Math.random() * (b - a);
+// swappable RNG: the Daily Challenge seeds it so every kid races the same track
+let RNG = Math.random;
+function mulberry32(a) {
+  return function () {
+    a |= 0; a = (a + 0x6D2B79F5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+const rand = (a, b) => a + RNG() * (b - a);
 const irand = (a, b) => Math.floor(rand(a, b + 1));
-const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+const pick = (arr) => arr[Math.floor(RNG() * arr.length)];
 const fmt = (n) => Math.floor(n).toLocaleString('en-GB');
 const todayStr = () => new Date().toISOString().slice(0, 10);
 
@@ -91,6 +101,15 @@ const THEMES = [
   { name: '🏜️ Desert Dunes',  ground: ['#eed9a0', '#ddb96e'], groundLo: ['#d4b06a', '#b98f4e'] },
   { name: '❄️ Snowy Peaks',   ground: ['#eef3fa', '#c4d3e6'], groundLo: ['#b9c9de', '#93a8c4'] },
   { name: '🍭 Candy Land',    ground: ['#ffb9dc', '#ff9ccc'], groundLo: ['#ff8ac2', '#f06aab'] },
+  { name: '🌋 Volcano Valley', ground: ['#6a4a44', '#553733'], groundLo: ['#4a322e', '#35211e'] },
+];
+const SOUV_ICONS = ['🌼', '🌵', '❄️', '🍭', '🌋'];
+
+// pets: little buddies that snatch coins for you
+const PETS = [
+  { id: 'chick', icon: '🐤', name: 'Chick',  price: 2500,  cd: 6,   desc: 'Grabs a coin every 6s' },
+  { id: 'drago', icon: '🐲', name: 'Drago',  price: 6000,  cd: 4.5, desc: 'Grabs a coin every 4.5s' },
+  { id: 'star',  icon: '🌟', name: 'Twinkle', price: 12000, cd: 3,   desc: 'Grabs a coin every 3s!' },
 ];
 
 const MISSION_TPLS = [
@@ -124,6 +143,10 @@ function defaultSave() {
     xp: 0,
     rivalsBeaten: 0,
     wordHunt: { date: '', got: [false, false, false, false, false, false], streak: 0 },
+    souvenirs: [false, false, false, false, false],
+    pets: [],
+    activePet: '',
+    dailyRun: { date: '', best: 0 },
     seenHowto: false,
     stats: { runs: 0, totalCoins: 0, totalDist: 0, jumps: 0, slides: 0, powerups: 0 },
   };
@@ -171,6 +194,14 @@ let S = (() => {
   d.wordHunt.date = typeof d.wordHunt.date === 'string' ? d.wordHunt.date : '';
   d.wordHunt.got = d.wordHunt.got.map(g => g === true);
   d.wordHunt.streak = num(d.wordHunt.streak, 0);
+  if (!Array.isArray(d.souvenirs) || d.souvenirs.length !== THEMES.length) d.souvenirs = fresh.souvenirs;
+  d.souvenirs = d.souvenirs.map(s => s === true);
+  if (!Array.isArray(d.pets)) d.pets = [];
+  d.pets = d.pets.filter(id => PETS.some(p => p.id === id));
+  if (typeof d.activePet !== 'string' || (d.activePet && !d.pets.includes(d.activePet))) d.activePet = '';
+  if (!d.dailyRun || typeof d.dailyRun !== 'object') d.dailyRun = fresh.dailyRun;
+  d.dailyRun.date = typeof d.dailyRun.date === 'string' ? d.dailyRun.date : '';
+  d.dailyRun.best = num(d.dailyRun.best, 0);
   return d;
 })();
 
@@ -450,6 +481,9 @@ function showScreen(name) {
     refreshBalances();
     drawMenuChar();
     refreshMissionBadge();
+    $('daily-best').textContent = S.dailyRun.date === todayStr()
+      ? `Best today: ${fmt(S.dailyRun.best)}`
+      : 'NEW track today!';
   }
   if (name === 'shop') renderShop();
   if (name === 'chars') renderChars();
@@ -819,9 +853,10 @@ function project(laneF, z) {
   };
 }
 
-// sky palettes that slowly cycle as you run (day → sunset → night → dawn)
+// sky palettes that slowly cycle as you run (day → sunset → night → dawn → embers)
 const SKIES = [
   ['#4aa9ff', '#bfe6ff'], ['#ff9a5c', '#ffd9a0'], ['#1b1464', '#4a3f9e'], ['#ff7eb3', '#ffd1dc'],
+  ['#3a1f24', '#8a3a26'],
 ];
 const STARS = Array.from({ length: 42 }, () => [Math.random(), Math.random() * 0.9, rand(0.3, 1)]);
 const CLOUDS = [[0.15, 0.3, 0.22, 0.8], [0.55, 0.18, 0.3, 0.5], [0.85, 0.42, 0.18, 1.1], [0.35, 0.55, 0.14, 1.5]];
@@ -850,13 +885,20 @@ const G = {
   runMissions: [], doubled: false, lastSafe: 1,
   combo: 0, comboT: 0,
   annQ: [], annT: 0, bestBeaten: false,
+  daily: false, petT: 0,
   continueTimer: null, scoreTick: null,
 };
 
 const JUMP_DUR = 0.62, SLIDE_DUR = 0.7;
 
-function startRun() {
+function startRun(dailyMode) {
+  const isDaily = dailyMode === true;
+  // the Daily Challenge: same seeded track for every player, every attempt today
+  RNG = isDaily
+    ? mulberry32([...todayStr()].reduce((a, c) => a * 31 + c.charCodeAt(0), 7) | 0)
+    : Math.random;
   Object.assign(G, {
+    daily: isDaily, petT: 2,
     state: 'playing', laneF: 0, laneTarget: 0, jumpT: -1, slideT: -1,
     speed: 300, dist: 0, score: 0, runCoins: 0, mult: 1,
     obstacles: [], coins: [], pickups: [], letters: [], decor: [], parts: [], floats: [], flyCoins: [],
@@ -873,8 +915,12 @@ function startRun() {
     annQ: [], annT: 0, bestBeaten: false,
   });
   // remind the player what they're chasing this run
-  const goal = S.missions.find(m => m.prog < m.target);
-  if (goal) addFloat(`🎯 ${missionText(goal)}!`, W / 2, H * 0.3, '#ffd23e', 27);
+  if (isDaily) {
+    addFloat('📅 DAILY CHALLENGE!', W / 2, H * 0.3, '#7fe0ff', 34);
+  } else {
+    const goal = S.missions.find(m => m.prog < m.target);
+    if (goal) addFloat(`🎯 ${missionText(goal)}!`, W / 2, H * 0.3, '#ffd23e', 27);
+  }
   if (charDef().bonus.startShield) G.pu.shield = puDuration('shield');
   clearInterval(Ad.timer);
   Ad.onReward = null; // a new run voids any pending ad reward
@@ -961,8 +1007,20 @@ function spawnChunk() {
   if (li >= 0 && Math.random() < 0.12) {
     G.letters.push({ idx: li, laneF: safeLane, z: SPAWN_Z + 200, spin: 0 });
   }
+  // patrol drones sweep across the lanes — read their rhythm, roll under!
+  if (G.dist > 1200 && RNG() < 0.16) {
+    G.obstacles.push({
+      kind: 'drone', lane: 0, base: 0, z: SPAWN_Z + 520, len: 26,
+      hue: irand(0, 4), vz: 0, ph: rand(0, 6.28), swaySpd: rand(1.4, 2.1),
+    });
+  }
+  // world souvenirs: one rare keepsake hidden in each land
+  const sIdx = G.themeIdx % THEMES.length;
+  if (!S.souvenirs[sIdx] && RNG() < 0.05) {
+    G.pickups.push({ kind: 'souv', icon: SOUV_ICONS[sIdx], souvIdx: sIdx, laneF: safeLane, z: SPAWN_Z + 260, spin: 0 });
+  }
   // launch ramps: hit one for a SUPER JUMP into a sky-high coin arc
-  if (Math.random() < 0.15) {
+  if (RNG() < 0.15) {
     G.obstacles.push({ kind: 'ramp', lane: safeLane, z: SPAWN_Z + 320, len: 36, hue: 0, vz: 0 });
     for (let i = 0; i < 6; i++) {
       G.coins.push({
@@ -978,6 +1036,7 @@ const THEME_DECOR = [
   ['cactus', 'rock', 'cactus'],
   ['pine', 'snowman', 'pine'],
   ['lolly', 'cane', 'lolly'],
+  ['lavarock', 'geyser', 'lavarock'],
 ];
 
 function spawnDecor() {
@@ -1083,6 +1142,30 @@ function update(dt) {
   }
 
   tickAnnounce(dt);
+
+  // pet buddy snatches a nearby coin on cooldown
+  if (S.activePet) {
+    G.petT -= dt;
+    if (G.petT <= 0) {
+      const pet = PETS.find(p => p.id === S.activePet);
+      const target = G.coins.find(c => !c.taken && c.z > 40 && c.z < 420 && !c.h);
+      if (target && pet) {
+        target.taken = true;
+        const v = Math.round(1 * (1 + (charDef().bonus.coin || 0)) * G.mult * (S.doubler ? 2 : 1));
+        G.runCoins += v;
+        S.stats.totalCoins += v;
+        missionEvent('coins', v);
+        AudioSys.coinSfx(G.combo);
+        const pp = project(G.laneF + 0.55, 25);
+        addFloat(`${pet.icon} +${v}`, pp.x, pp.y - 70, '#7fe0ff');
+        G.flyCoins.push({ x: pp.x, y: pp.y - 50, t: 0 });
+        refreshBalances();
+        G.petT = pet.cd;
+      } else {
+        G.petT = 0.4; // nothing in reach — peek again shortly
+      }
+    }
+  }
 
   // fever sparkle aura on the runner
   if (G.fever > 0 && Math.random() < 0.6) {
@@ -1215,6 +1298,7 @@ function update(dt) {
   // move world (some trains rush toward you!)
   for (const o of G.obstacles) {
     o.z -= dz + (o.vz || 0) * dt;
+    if (o.kind === 'drone') o.lane = o.base + Math.sin(G.phase * o.swaySpd + o.ph); // sweeping patrol
     // near-miss bonus: a train thunders past one lane over
     if (!o.passed && o.z < -2) {
       o.passed = true;
@@ -1317,7 +1401,20 @@ function update(dt) {
     if (p.z < HITZ + 14 && p.z > -24 && Math.abs(p.laneF - G.laneF) < 0.6) {
       p.taken = true;
       const pr = project(p.laneF, Math.max(0, p.z));
-      if (p.kind === 'box') {
+      if (p.kind === 'souv') {
+        S.souvenirs[p.souvIdx] = true;
+        const got = S.souvenirs.filter(Boolean).length;
+        save();
+        addFloat(`${p.icon} SOUVENIR FOUND! (${got}/${THEMES.length})`, W / 2, H * 0.3, '#ffd23e', 32);
+        AudioSys.sfx('mission');
+        burst(pr.x, pr.y - 40, '#ffd23e', 18);
+        G.flashT = Math.max(G.flashT, 0.2);
+        if (got === THEMES.length) {
+          S.coins += 2000; S.boxes += 3; save();
+          addFloat('👑 LEGENDARY EXPLORER! +2,000 🪙 +3 🎁', W / 2, H * 0.3, '#fff', 34);
+        }
+        refreshBalances();
+      } else if (p.kind === 'box') {
         S.boxes++;
         save();
         AudioSys.sfx('buy');
@@ -1363,7 +1460,7 @@ function update(dt) {
         burst(pr.x, pr.y - 20, '#7fe0ff', 14);
         continue;
       }
-      const cleared = (o.kind === 'hurdle' && jumping) || (o.kind === 'bar' && sliding);
+      const cleared = (o.kind === 'hurdle' && jumping) || ((o.kind === 'bar' || o.kind === 'drone') && sliding);
       if (cleared) continue;
       if (G.pu.boost > 0 || G.invinc > 0) { smash(o); continue; }
       // hoverboard takes the hit and shatters — you keep running!
@@ -1551,6 +1648,15 @@ function gameOver() {
   S.coins += G.runCoins;
   S.stats.runs++;
   missionEvent('runs', 1);
+
+  // daily challenge result
+  if (G.daily) {
+    if (S.dailyRun.date !== todayStr()) S.dailyRun = { date: todayStr(), best: 0 };
+    if (score > S.dailyRun.best) {
+      S.dailyRun.best = score;
+      toast(`📅 New daily best: ${fmt(score)}!`, true);
+    }
+  }
 
   // XP and level-ups — every run makes you stronger
   const beforeLvl = levelInfo().lvl;
@@ -1788,13 +1894,16 @@ function render() {
         } else if (themeIdx === 2) { // snow sparkles
           ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(G.phase * 4 + absRow)})`;
           ctx.beginPath(); ctx.arc(dp.x, dp.y - ds * 0.5, ds * 0.6, 0, 7); ctx.fill();
-        } else { // candy sprinkles
+        } else if (themeIdx === 3) { // candy sprinkles
           ctx.fillStyle = ['#ff5e5e', '#5ad845', '#54a9ff', '#ffe14d'][(absRow + side) & 3];
           ctx.save();
           ctx.translate(dp.x, dp.y - ds * 0.5);
           ctx.rotate(h * 6);
           ctx.fillRect(-ds, -ds * 0.35, ds * 2, ds * 0.7);
           ctx.restore();
+        } else { // glowing embers
+          ctx.fillStyle = `rgba(255,${110 + ((absRow * 37) % 60)},30,${0.4 + 0.45 * Math.sin(G.phase * 3 + absRow)})`;
+          ctx.beginPath(); ctx.arc(dp.x, dp.y - ds * 0.4, ds * 0.7, 0, 7); ctx.fill();
         }
       }
     }
@@ -2095,6 +2204,24 @@ function drawBackdrop(ti, alpha) {
       }
       break;
     }
+    case 4: { // Volcano Valley: smoking peak over dark ridges
+      const vx = wrapX(0.6, 0.2, 180);
+      ctx.fillStyle = 'rgba(60,38,36,.85)';
+      ctx.beginPath();
+      ctx.moveTo(vx - 130, hz + 1); ctx.lineTo(vx - 22, hz - H * 0.13);
+      ctx.lineTo(vx + 22, hz - H * 0.13); ctx.lineTo(vx + 130, hz + 1);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = `rgba(255,110,30,${0.55 + 0.3 * Math.sin(G.phase * 2)})`;
+      ctx.beginPath(); ctx.ellipse(vx, hz - H * 0.128, 20, 6, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(90,80,82,.5)';
+      const sp = (G.phase * 8) % 40;
+      ctx.beginPath();
+      ctx.arc(vx + sp * 0.4, hz - H * 0.15 - sp, 9 + sp * 0.35, 0, 7);
+      ctx.fill();
+      ridge(H * 0.08, 280, 0.3, 'rgba(82,52,46,.6)');
+      ridge(H * 0.05, 160, 0.62, 'rgba(58,36,32,.7)');
+      break;
+    }
     case 3: { // Candy Land: rainbow + scoop hills
       const rx = W * 0.28, rcols = ['#ff5e5e', '#ff9a3c', '#ffe14d', '#5ad845', '#54a9ff'];
       ctx.lineWidth = 9;
@@ -2263,6 +2390,29 @@ function drawObstacle(o) {
       ctx.lineTo(cxp, cyp + cs * 0.3);
       ctx.closePath(); ctx.fill();
     }
+  } else if (o.kind === 'drone') {
+    // patrol drone: hovers at body height, rotors whirring
+    const y = front.y - w * 0.72 - Math.sin(G.phase * 5 + o.ph) * w * 0.08;
+    ctx.fillStyle = 'rgba(0,0,0,.18)';
+    ctx.beginPath(); ctx.ellipse(front.x, front.y, w * 0.3, w * 0.07, 0, 0, 7); ctx.fill();
+    const bg2 = ctx.createLinearGradient(0, y - w * 0.2, 0, y + w * 0.2);
+    bg2.addColorStop(0, '#5a6478'); bg2.addColorStop(1, '#2e3442');
+    ctx.fillStyle = bg2;
+    ctx.beginPath(); ctx.ellipse(front.x, y, w * 0.3, w * 0.18, 0, 0, 7); ctx.fill();
+    ctx.fillStyle = '#9fd8ff';
+    ctx.beginPath(); ctx.ellipse(front.x, y - w * 0.05, w * 0.14, w * 0.08, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(220,228,240,.85)';
+    ctx.lineWidth = Math.max(1.5, w * 0.035);
+    const spin = G.phase * 30;
+    for (const s of [-1, 1]) {
+      const ax = front.x + s * w * 0.38, ay = y - w * 0.12;
+      ctx.beginPath();
+      ctx.moveTo(ax - Math.cos(spin) * w * 0.16, ay - Math.sin(spin) * w * 0.045);
+      ctx.lineTo(ax + Math.cos(spin) * w * 0.16, ay + Math.sin(spin) * w * 0.045);
+      ctx.stroke();
+    }
+    ctx.fillStyle = Math.floor(G.phase * 6) % 2 ? '#ff5a4d' : '#7a2620';
+    ctx.beginPath(); ctx.arc(front.x, y + w * 0.12, w * 0.05, 0, 7); ctx.fill();
   } else if (o.kind === 'hurdle') {
     const h = w * 0.42;
     ctx.fillStyle = '#888';
@@ -2360,14 +2510,14 @@ function drawPickup(p) {
   const pr = project(p.laneF, Math.max(0.001, p.z));
   const r = LANE_W() * 0.22 * pr.p;
   const y = pr.y - r * 1.7 - Math.sin(p.spin) * r * 0.3;
-  const isBox = p.kind === 'box';
-  ctx.fillStyle = isBox ? '#a45ce8' : POWERUPS[p.kind].color;
+  const isBox = p.kind === 'box', isSouv = p.kind === 'souv';
+  ctx.fillStyle = isSouv ? '#ffd23e' : isBox ? '#a45ce8' : POWERUPS[p.kind].color;
   ctx.beginPath(); ctx.arc(pr.x, y, r, 0, 7); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,.35)';
   ctx.beginPath(); ctx.arc(pr.x - r * 0.3, y - r * 0.3, r * 0.35, 0, 7); ctx.fill();
   ctx.font = `${r * 1.1}px sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(isBox ? '🎁' : POWERUPS[p.kind].icon, pr.x, y + r * 0.05);
+  ctx.fillText(isSouv ? p.icon : isBox ? '🎁' : POWERUPS[p.kind].icon, pr.x, y + r * 0.05);
   ctx.textBaseline = 'alphabetic';
   ctx.globalAlpha = 1;
 }
@@ -2496,6 +2646,33 @@ function drawDecor(d) {
       ctx.setLineDash([]);
       break;
     }
+    case 'lavarock': {
+      ctx.fillStyle = '#3a2c28';
+      ctx.beginPath();
+      ctx.ellipse(x, y - s * 0.18, s * 0.34, s * 0.2, 0, 0, 7);
+      ctx.ellipse(x - s * 0.1, y - s * 0.32, s * 0.2, s * 0.14, 0, 0, 7);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(255,120,40,${0.5 + 0.4 * Math.sin(G.phase * 3 + x)})`;
+      ctx.lineWidth = s * 0.045;
+      ctx.beginPath();
+      ctx.moveTo(x - s * 0.2, y - s * 0.16); ctx.lineTo(x, y - s * 0.26); ctx.lineTo(x + s * 0.18, y - s * 0.14);
+      ctx.stroke();
+      break;
+    }
+    case 'geyser': {
+      ctx.fillStyle = '#6b5a52';
+      ctx.beginPath();
+      ctx.moveTo(x - s * 0.28, y); ctx.lineTo(x - s * 0.1, y - s * 0.34);
+      ctx.lineTo(x + s * 0.1, y - s * 0.34); ctx.lineTo(x + s * 0.28, y);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,245,235,.7)';
+      const puff = (Math.sin(G.phase * 2 + x) + 1) / 2;
+      ctx.beginPath();
+      ctx.arc(x, y - s * (0.45 + puff * 0.3), s * (0.1 + puff * 0.12), 0, 7);
+      ctx.arc(x + s * 0.08, y - s * (0.6 + puff * 0.35), s * (0.07 + puff * 0.1), 0, 7);
+      ctx.fill();
+      break;
+    }
     case 'lolly': {
       ctx.fillStyle = '#fff';
       ctx.fillRect(x - s * 0.03, y - s * 0.55, s * 0.06, s * 0.55);
@@ -2585,6 +2762,17 @@ function drawPlayer() {
     lean: G.laneTarget - G.laneF,
   });
 
+  // pet buddy bobbing along beside you
+  if (S.activePet && G.state === 'playing') {
+    const pet = PETS.find(p => p.id === S.activePet);
+    if (pet) {
+      const pp = project(G.laneF + 0.55, 25);
+      ctx.font = `${Math.round(size * 0.55)}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.fillText(pet.icon, pp.x, pp.y - size * 0.9 - Math.sin(G.phase * 4) * size * 0.12);
+    }
+  }
+
   // bubble shield
   if (G.pu.shield > 0) {
     ctx.strokeStyle = 'rgba(110,240,160,.8)';
@@ -2613,6 +2801,7 @@ function render3D() {
   const cyc = (G.dist / 2500) % SKIES.length;
   const i0 = Math.floor(cyc), i1 = (i0 + 1) % SKIES.length, ft = cyc - i0;
   const t0 = THEMES[i0 % THEMES.length], t1 = THEMES[i1 % THEMES.length];
+  const petDef = S.activePet ? PETS.find(p => p.id === S.activePet) : null;
   R3D.render({
     G,
     charDef: charDef(),
@@ -2620,6 +2809,7 @@ function render3D() {
     skyBot: lerpColor(SKIES[i0][1], SKIES[i1][1], ft),
     ground: lerpColor(t0.ground[0], t1.ground[0], ft),
     huntWord: HUNT_WORD,
+    petIcon: petDef ? petDef.icon : null,
   });
 
   // ---- overlay: particles, popups and full-screen juice ----
@@ -2811,6 +3001,39 @@ function renderShop() {
     gear.appendChild(card);
   }
 
+  // pets: buy once, choose who runs with you
+  const petList = $('pet-list');
+  petList.innerHTML = '';
+  for (const p of PETS) {
+    const owned = S.pets.includes(p.id);
+    const active = S.activePet === p.id;
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-emoji">${p.icon}</div>
+      <div class="card-info"><b>${p.name}</b><span>${p.desc}</span></div>
+      <button class="btn ${active ? 'btn-grey' : owned ? 'btn-green' : 'btn-yellow'}">
+        ${active ? '✔ With you!' : owned ? 'Choose' : `🪙 ${fmt(p.price)}`}
+      </button>`;
+    card.querySelector('button').addEventListener('click', () => {
+      AudioSys.sfx('click');
+      if (active) { S.activePet = ''; save(); renderShop(); return; }
+      if (owned) {
+        S.activePet = p.id; save(); AudioSys.sfx('buy');
+        toast(`${p.icon} ${p.name} is running with you!`, true);
+        renderShop();
+      } else if (S.coins >= p.price) {
+        S.coins -= p.price; S.pets.push(p.id); S.activePet = p.id; save();
+        AudioSys.sfx('mission');
+        toast(`${p.icon} ${p.name} joined your team!`, true);
+        renderShop();
+      } else {
+        toast(`Need ${fmt(p.price - S.coins)} more coins!`);
+      }
+    });
+    petList.appendChild(card);
+  }
+
   const list = $('upgrade-list');
   list.innerHTML = '';
   for (const k of Object.keys(POWERUPS)) {
@@ -2905,6 +3128,16 @@ function renderMissions() {
       <div class="mission-prog">${done ? 'Come back tomorrow for a new word!' : `Grab golden letters during runs to spell ${HUNT_WORD} — win coins + a Mystery Box!`}</div>
     </div>`;
 
+  // souvenir album — one keepsake hidden in every world
+  const got = S.souvenirs.filter(Boolean).length;
+  $('souvenir-card').innerHTML = `
+    <div class="card mission-card hunt-card">
+      <div class="mission-top"><b>🧭 World Souvenirs ${got === THEMES.length ? '— ALL FOUND! 👑' : `(${got}/${THEMES.length})`}</b></div>
+      <div class="hunt-tiles">${SOUV_ICONS.map((ic, i) =>
+        `<span class="hunt-tile ${S.souvenirs[i] ? 'got' : ''}">${S.souvenirs[i] ? ic : '❓'}</span>`).join('')}</div>
+      <div class="mission-prog">${got === THEMES.length ? 'You explored every world!' : 'A rare keepsake hides in each world — keep running to find them!'}</div>
+    </div>`;
+
   const list = $('mission-list');
   list.innerHTML = '';
   S.missions.forEach((m, i) => {
@@ -2981,7 +3214,7 @@ bind('btn-box-buy', () => {
 });
 bind('btn-box-close', () => $('mod-box').classList.add('hidden'));
 bind('btn-resume', resumeGame);
-bind('btn-restart', startRun);
+bind('btn-restart', () => startRun(G.daily));
 bind('btn-quit', () => { G.state = 'menu'; $('ovl-pause').classList.add('hidden'); showScreen('menu'); });
 
 /* continue screen */
@@ -3023,7 +3256,8 @@ bind('btn-double', () => {
     refreshBalances();
   });
 });
-bind('btn-again', startRun);
+bind('btn-again', () => startRun(G.daily));
+bind('btn-daily-run', () => { S.seenHowto = true; save(); startRun(true); });
 bind('btn-home', () => { G.state = 'menu'; $('ovl-over').classList.add('hidden'); showScreen('menu'); });
 
 /* ad modal */

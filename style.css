@@ -91,6 +91,11 @@ button { font-family:inherit; }
 }
 .btn-round small { font-size:11px; font-weight:700; }
 .menu-row { display:flex; gap:12px; z-index:1; }
+.btn-daily {
+  background:linear-gradient(180deg,#54a9ff,#2f6df0); font-size:15px; padding:9px 18px;
+  border-radius:30px;
+}
+.btn-daily small { font-weight:700; opacity:.9; }
 .badge {
   position:absolute; top:-6px; right:-6px; background:#ff3b3b; width:24px; height:24px; border-radius:50%;
   font-size:15px; display:flex; align-items:center; justify-content:center; animation:pulse 1s infinite;

@@ -17,6 +17,7 @@ window.R3D = (() => {
   const sleepers = [], posts = [], railMats = [];
   const clouds = [], ambient = [], poles = [], gantries = [];
   let player, guard, shieldBall, board, blob;
+  let R3D_THEME_COUNT = 4;
   const pools = new Map();
   const sprites = new Map();
   let SKY = new THREE.Color('#bfe6ff');
@@ -261,7 +262,51 @@ window.R3D = (() => {
         pop.rotation.x = Math.PI / 2;
         break;
       }
+      case 'lavarock': {
+        const lr = add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), cmat('#3a2c28')), 0, 0.24, 0);
+        lr.scale.set(1.25, 0.6, 1);
+        add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6),
+          mat('#ff7a28', { emissive: '#ff5a00', emissiveIntensity: 1.4 })), 0.18, 0.42, 0.14);
+        add(new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6),
+          mat('#ffae3a', { emissive: '#ff8800', emissiveIntensity: 1.4 })), -0.22, 0.36, -0.05);
+        break;
+      }
+      case 'geyser': {
+        add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.42, 0.55, 9), cmat('#6b5a52')), 0, 0.28, 0);
+        const puff = add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6),
+          new THREE.MeshBasicMaterial({ color: 0xfff5eb, transparent: true, opacity: 0.7 })), 0, 0.75, 0);
+        puff.userData.puff = true;
+        break;
+      }
     }
+    return g;
+  }
+
+  function makeDrone() {
+    const g = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.34, 12, 10), mat('#3c4356'));
+    body.scale.set(1.25, 0.7, 1);
+    body.castShadow = true;
+    g.add(body);
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.18, 10, 8), mat('#9fd8ff', { roughness: 0.25 }));
+    dome.position.y = 0.16;
+    g.add(dome);
+    const rotors = [];
+    for (const s of [-1, 1]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.05, 0.07), cmat('#2e3442'));
+      arm.position.set(s * 0.5, 0.1, 0);
+      g.add(arm);
+      const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.02, 10),
+        new THREE.MeshBasicMaterial({ color: 0xdce4f0, transparent: true, opacity: 0.45 }));
+      disc.position.set(s * 0.68, 0.16, 0);
+      g.add(disc);
+      rotors.push(disc);
+    }
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.07, 8, 6),
+      mat('#ff5a4d', { emissive: '#ff2010', emissiveIntensity: 1.5 }));
+    eye.position.set(0, -0.12, 0.3);
+    g.add(eye);
+    g.userData.rotors = rotors;
     return g;
   }
 
@@ -565,11 +610,13 @@ window.R3D = (() => {
       ['cactus', 'rock', 'cactus', 'cactus', 'rock'],
       ['pine', 'snowman', 'pine', 'pine', 'rock'],
       ['lolly', 'cane', 'lolly', 'cane', 'lolly'],
+      ['lavarock', 'geyser', 'lavarock', 'lavarock', 'geyser'],
     ];
+    R3D_THEME_COUNT = AMBIENT_THEMES.length;
     for (const side of [-1, 1]) {
       for (let i = 0; i < 16; i++) { // near row: one variant per theme, toggled live
         const slot = new THREE.Group();
-        for (let t = 0; t < 4; t++) {
+        for (let t = 0; t < AMBIENT_THEMES.length; t++) {
           const kinds = AMBIENT_THEMES[t];
           const kind = kinds[Math.floor(hash01(i * 17 + side * 3 + t * 101) * kinds.length)];
           const v = makeDecor(kind);
@@ -742,13 +789,13 @@ window.R3D = (() => {
 
     // scroll the ambient world: scenery rows, poles, gantries
     const dz = G.dist * 10 * K;
-    const themeNow = G.themeIdx % 4;
+    const themeNow = G.themeIdx % R3D_THEME_COUNT;
     const scroll = (m) => {
       const a = m.userData.amb;
       m.position.x = a.x;
       m.position.z = -(a.i * a.spacing) + (dz % a.spacing) + 2;
       if (m.userData.themed) {
-        for (let t = 0; t < 4; t++) m.children[t].visible = t === themeNow;
+        for (let t = 0; t < R3D_THEME_COUNT; t++) m.children[t].visible = t === themeNow;
       }
     };
     for (const m of ambient) scroll(m);
@@ -778,6 +825,10 @@ window.R3D = (() => {
             if (ch.position.z > 0.4) ch.position.z = len / 2 + 0.01;
           }
         }
+      } else if (ob.kind === 'drone') {
+        const m = take('drone', makeDrone);
+        m.position.set(ob.lane * LANE, 1.05 + Math.sin(G.phase * 5 + ob.ph) * 0.1, zz);
+        for (const ds of m.userData.rotors) ds.rotation.y = G.phase * 30;
       } else if (ob.kind === 'hurdle') {
         take('hurdle', makeHurdle).position.set(ob.lane * LANE, 0, zz);
       } else if (ob.kind === 'bar') {
@@ -792,9 +843,14 @@ window.R3D = (() => {
       m.rotation.y = c.spin;
     }
     for (const p of G.pickups) {
-      const icon = p.kind === 'box' ? '🎁' : { magnet: '🧲', mult: '⭐', boost: '🚀', shield: '🛡️' }[p.kind];
+      const icon = p.icon || (p.kind === 'box' ? '🎁' : { magnet: '🧲', mult: '⭐', boost: '🚀', shield: '🛡️' }[p.kind]);
       const m = take('pu' + icon, () => makeSprite(emojiSprite(icon), 1.0));
       m.position.set(p.laneF * LANE, 1.1 + Math.sin(p.spin) * 0.15, -p.z * K);
+    }
+    // pet buddy hovering at your shoulder
+    if (o.petIcon && G.state === 'playing') {
+      const m = take('pet' + o.petIcon, () => makeSprite(emojiSprite(o.petIcon), 0.8));
+      m.position.set(G.laneF * LANE + 1.05, 1.45 + Math.sin(G.phase * 4) * 0.12, 0.4);
     }
     for (const l of G.letters) {
       const m = take('letter' + l.idx, () => makeSprite(letterTex(o.huntWord[l.idx]), 0.9));
