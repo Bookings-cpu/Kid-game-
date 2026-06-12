@@ -328,64 +328,149 @@ function checkDaily() {
 }
 
 /* ============================== character drawing ============================== */
+function shade(hex, amt) {
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  if (amt >= 0) { r += (255 - r) * amt; g += (255 - g) * amt; b += (255 - b) * amt; }
+  else { r *= 1 + amt; g *= 1 + amt; b *= 1 + amt; }
+  return `rgb(${r | 0},${g | 0},${b | 0})`;
+}
+
 function drawCharacter(ctx, x, y, size, def, opts) {
-  // x,y = feet centre; size = body diameter. opts: {phase, jump, slide, lean}
+  // x,y = feet centre; size = body diameter. opts: {phase, jump, slide, lean, run}
   const o = opts || {};
   const phase = o.phase || 0;
   const slide = o.slide || 0;       // 0..1
-  const jump = o.jump || 0;         // 0..1 (stretch)
+  const jump = o.jump || 0;         // 0..1
   const lean = o.lean || 0;         // -1..1
-  const bob = o.run ? Math.abs(Math.sin(phase * 14)) * size * 0.06 : 0;
+  const run = !!o.run;
+  const swing = run ? Math.sin(phase * 14) : 0;
+  const bob = run ? Math.abs(Math.sin(phase * 14)) * size * 0.05 : 0;
+  const r = size / 2;
 
   ctx.save();
   ctx.translate(x, y);
-  ctx.rotate(lean * 0.22);
+  ctx.rotate(lean * 0.22 + (run ? Math.sin(phase * 7) * 0.02 : 0));
+  ctx.lineCap = 'round';
 
-  const squashY = 1 - slide * 0.45 + jump * 0.15;
-  const squashX = 1 + slide * 0.3 - jump * 0.08;
-  const r = size / 2;
+  const squashY = 1 - slide * 0.45 + jump * 0.18;
+  const squashX = 1 + slide * 0.32 - jump * 0.1;
+  const legLift = r * 0.42 * (1 - slide);
+  const by = -(r * squashY + legLift) - bob;   // body centre
 
-  // feet
-  ctx.fillStyle = '#4a2c12';
-  const footSwing = o.run ? Math.sin(phase * 14) * r * 0.45 : 0;
-  ctx.beginPath();
-  ctx.ellipse(-r * 0.35 + footSwing * 0.4, -r * 0.12, r * 0.28, r * 0.16, 0, 0, 7);
-  ctx.ellipse(r * 0.35 - footSwing * 0.4, -r * 0.12, r * 0.28, r * 0.16, 0, 0, 7);
-  ctx.fill();
+  // legs (tucked when rolling)
+  if (slide < 0.4) {
+    const hipY = by + r * 0.55 * squashY;
+    ctx.strokeStyle = shade(def.body, -0.28);
+    ctx.lineWidth = r * 0.22;
+    for (const s of [-1, 1]) {
+      const sw = swing * s;
+      const tuck = jump > 0.3;
+      const fx = s * r * 0.28 + (tuck ? 0 : sw * r * 0.42);
+      const fy = tuck ? by + r * 0.85 : -r * 0.05 - Math.max(0, sw) * r * 0.28;
+      ctx.beginPath();
+      ctx.moveTo(s * r * 0.26, hipY);
+      ctx.lineTo(fx, fy);
+      ctx.stroke();
+      // trainers
+      ctx.fillStyle = '#fff';
+      ctx.beginPath(); ctx.ellipse(fx + s * r * 0.06, fy, r * 0.21, r * 0.13, 0, 0, 7); ctx.fill();
+      ctx.fillStyle = '#e8443a';
+      ctx.beginPath(); ctx.ellipse(fx + s * r * 0.06, fy + r * 0.05, r * 0.21, r * 0.07, 0, 0, 7); ctx.fill();
+    }
+  }
 
-  // body
-  const by = -r * squashY - bob;
-  ctx.fillStyle = def.body;
+  // body with soft lighting + outline
+  const bg = ctx.createRadialGradient(-r * 0.35, by - r * 0.45, r * 0.1, 0, by, r * 1.2);
+  bg.addColorStop(0, shade(def.body, 0.28));
+  bg.addColorStop(1, shade(def.body, -0.12));
+  ctx.fillStyle = bg;
   ctx.beginPath();
   ctx.ellipse(0, by, r * squashX, r * squashY, 0, 0, 7);
   ctx.fill();
+  ctx.strokeStyle = shade(def.body, -0.42);
+  ctx.lineWidth = Math.max(1.5, r * 0.06);
+  ctx.stroke();
 
   // belly
-  ctx.fillStyle = def.belly;
+  const bgl = ctx.createLinearGradient(0, by - r * 0.2, 0, by + r * 0.7);
+  bgl.addColorStop(0, shade(def.belly, 0.15));
+  bgl.addColorStop(1, shade(def.belly, -0.06));
+  ctx.fillStyle = bgl;
   ctx.beginPath();
-  ctx.ellipse(0, by + r * 0.25 * squashY, r * 0.55 * squashX, r * 0.45 * squashY, 0, 0, 7);
+  ctx.ellipse(0, by + r * 0.28 * squashY, r * 0.55 * squashX, r * 0.45 * squashY, 0, 0, 7);
   ctx.fill();
 
-  // eyes
+  // rolling motion arcs
+  if (slide > 0.3) {
+    ctx.strokeStyle = 'rgba(255,255,255,.6)';
+    ctx.lineWidth = r * 0.07;
+    ctx.beginPath(); ctx.arc(0, by, r * 1.15, -0.6, 0.7); ctx.stroke();
+    ctx.beginPath(); ctx.arc(0, by, r * 1.3, Math.PI - 0.5, Math.PI + 0.6); ctx.stroke();
+  }
+
+  // arms (raised when jumping — wheee!)
+  if (slide < 0.4) {
+    ctx.strokeStyle = shade(def.body, -0.18);
+    ctx.lineWidth = r * 0.19;
+    for (const s of [-1, 1]) {
+      const sw = -swing * s;
+      const sx = s * r * 0.72 * squashX, sy = by + r * 0.02;
+      const hx = jump > 0.3 ? s * r * 1.05 : sx + s * r * 0.2 + sw * r * 0.3;
+      const hy = jump > 0.3 ? by - r * 0.75 : sy + r * 0.5 - sw * r * 0.25;
+      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke();
+      ctx.fillStyle = def.belly;
+      ctx.beginPath(); ctx.arc(hx, hy, r * 0.13, 0, 7); ctx.fill();
+    }
+  }
+
+  // eyes with shine (and the odd blink)
   const ey = by - r * 0.25 * squashY;
-  ctx.fillStyle = '#fff';
+  const blink = run && Math.sin(phase * 1.9) > 0.992;
+  if (blink) {
+    ctx.strokeStyle = '#222'; ctx.lineWidth = r * 0.07;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.42, ey); ctx.lineTo(-r * 0.18, ey);
+    ctx.moveTo(r * 0.18, ey); ctx.lineTo(r * 0.42, ey);
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.3, ey, r * 0.2, r * 0.25 * squashY, 0, 0, 7);
+    ctx.ellipse(r * 0.3, ey, r * 0.2, r * 0.25 * squashY, 0, 0, 7);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = Math.max(1, r * 0.03);
+    ctx.stroke();
+    ctx.fillStyle = '#26221f';
+    ctx.beginPath();
+    ctx.arc(-r * 0.26, ey + r * 0.04, r * 0.1, 0, 7);
+    ctx.arc(r * 0.34, ey + r * 0.04, r * 0.1, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(-r * 0.29, ey, r * 0.035, 0, 7);
+    ctx.arc(r * 0.31, ey, r * 0.035, 0, 7);
+    ctx.fill();
+  }
+
+  // rosy cheeks
+  ctx.fillStyle = 'rgba(255,110,140,.32)';
   ctx.beginPath();
-  ctx.ellipse(-r * 0.3, ey, r * 0.2, r * 0.24 * squashY, 0, 0, 7);
-  ctx.ellipse(r * 0.3, ey, r * 0.2, r * 0.24 * squashY, 0, 0, 7);
-  ctx.fill();
-  ctx.fillStyle = '#222';
-  ctx.beginPath();
-  ctx.arc(-r * 0.27, ey + r * 0.03, r * 0.09, 0, 7);
-  ctx.arc(r * 0.33, ey + r * 0.03, r * 0.09, 0, 7);
+  ctx.ellipse(-r * 0.5, ey + r * 0.26, r * 0.12, r * 0.08, 0, 0, 7);
+  ctx.ellipse(r * 0.5, ey + r * 0.26, r * 0.12, r * 0.08, 0, 0, 7);
   ctx.fill();
 
-  // smile
-  ctx.strokeStyle = '#222';
-  ctx.lineWidth = Math.max(1.5, r * 0.06);
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.arc(0, ey + r * 0.28, r * 0.22, 0.25, Math.PI - 0.25);
-  ctx.stroke();
+  // mouth — open "wheee" when jumping, smile otherwise
+  if (jump > 0.4) {
+    ctx.fillStyle = '#5b2730';
+    ctx.beginPath(); ctx.ellipse(0, ey + r * 0.32, r * 0.13, r * 0.17, 0, 0, 7); ctx.fill();
+  } else {
+    ctx.strokeStyle = '#222';
+    ctx.lineWidth = Math.max(1.5, r * 0.06);
+    ctx.beginPath();
+    ctx.arc(0, ey + r * 0.28, r * 0.22, 0.25, Math.PI - 0.25);
+    ctx.stroke();
+  }
 
   // hat / accessory
   const hy = by - r * squashY;
@@ -482,6 +567,8 @@ const SKIES = [
   ['#4aa9ff', '#bfe6ff'], ['#ff9a5c', '#ffd9a0'], ['#1b1464', '#4a3f9e'], ['#ff7eb3', '#ffd1dc'],
 ];
 const STARS = Array.from({ length: 42 }, () => [Math.random(), Math.random() * 0.9, rand(0.3, 1)]);
+const CLOUDS = [[0.15, 0.3, 0.22, 0.8], [0.55, 0.18, 0.3, 0.5], [0.85, 0.42, 0.18, 1.1], [0.35, 0.55, 0.14, 1.5]];
+const SKYLINE = Array.from({ length: 14 }, (_, i) => [0.5 + 0.5 * Math.sin(i * 7.3), 0.4 + 0.6 * Math.abs(Math.sin(i * 3.1))]);
 function lerpColor(c1, c2, t) {
   const p = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
   const a = p(c1), b = p(c2);
@@ -959,9 +1046,26 @@ function render() {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, HORIZON() * 1.4);
 
-  // sun
-  ctx.fillStyle = 'rgba(255,240,180,.9)';
+  // sun with halo
+  ctx.fillStyle = 'rgba(255,240,180,.14)';
+  ctx.beginPath(); ctx.arc(W * 0.78, HORIZON() * 0.45, 78, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,240,180,.3)';
+  ctx.beginPath(); ctx.arc(W * 0.78, HORIZON() * 0.45, 52, 0, 7); ctx.fill();
+  ctx.fillStyle = 'rgba(255,246,200,.95)';
   ctx.beginPath(); ctx.arc(W * 0.78, HORIZON() * 0.45, 34, 0, 7); ctx.fill();
+
+  // drifting clouds
+  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  for (const cl of CLOUDS) {
+    const cw = W * cl[2];
+    const cx2 = (((cl[0] * W - G.dist * cl[3]) % (W + cw * 2)) + W + cw * 2) % (W + cw * 2) - cw;
+    const cy = HORIZON() * cl[1];
+    ctx.beginPath();
+    ctx.ellipse(cx2, cy, cw * 0.5, cw * 0.18, 0, 0, 7);
+    ctx.ellipse(cx2 - cw * 0.25, cy + cw * 0.05, cw * 0.3, cw * 0.14, 0, 0, 7);
+    ctx.ellipse(cx2 + cw * 0.22, cy + cw * 0.04, cw * 0.28, cw * 0.13, 0, 0, 7);
+    ctx.fill();
+  }
 
   // stars come out at night
   const nightW = (i0 === 2 ? 1 - ft : 0) + (i1 === 2 ? ft : 0);
@@ -989,21 +1093,80 @@ function render() {
     ctx.closePath(); ctx.fill();
   }
 
+  // distant city skyline
+  {
+    const span = W / 7;
+    const shift = (G.dist * 0.45) % span;
+    for (let i = -1; i < 9; i++) {
+      const b = SKYLINE[((i % 14) + 14) % 14];
+      const bx = i * span - shift;
+      const bh = H * 0.07 * b[1];
+      ctx.fillStyle = 'rgba(70,85,150,.5)';
+      ctx.fillRect(bx, HORIZON() - bh, span * (0.5 + b[0] * 0.4), bh + 2);
+    }
+  }
+
   ctx.save();
   if (G.shake > 0) ctx.translate(rand(-G.shake, G.shake), rand(-G.shake, G.shake));
 
-  // ground
-  ctx.fillStyle = lerpColor('#58c24d', '#2e7d4f', ft * 0.5);
+  // ground with depth shading
+  const gg = ctx.createLinearGradient(0, HORIZON(), 0, H);
+  gg.addColorStop(0, lerpColor('#7fd071', '#4f9e63', ft * 0.5));
+  gg.addColorStop(1, lerpColor('#4fae44', '#2e7d4f', ft * 0.5));
+  ctx.fillStyle = gg;
   ctx.fillRect(0, HORIZON(), W, H - HORIZON());
 
-  // gravel track bed
+  // grass speed stripes
+  {
+    const stripe = 170;
+    const soff = (G.dist * 10) % (stripe * 2);
+    ctx.fillStyle = 'rgba(255,255,255,.05)';
+    for (let z = -soff; z < ZMAX; z += stripe * 2) {
+      const a = project(0, Math.max(0, z)), b = project(0, Math.max(0, z + stripe));
+      ctx.fillRect(0, b.y, W, a.y - b.y);
+    }
+  }
+
+  // gravel track bed with edge shadow
   const edgeL0 = project(-1.55, 0), edgeR0 = project(1.55, 0);
   const edgeLZ = project(-1.55, ZMAX), edgeRZ = project(1.55, ZMAX);
-  ctx.fillStyle = '#9a8f86';
+  const tg = ctx.createLinearGradient(0, HORIZON(), 0, H);
+  tg.addColorStop(0, '#8e857c');
+  tg.addColorStop(1, '#a89d92');
+  ctx.fillStyle = tg;
   ctx.beginPath();
   ctx.moveTo(edgeL0.x, edgeL0.y); ctx.lineTo(edgeR0.x, edgeR0.y);
   ctx.lineTo(edgeRZ.x, edgeRZ.y); ctx.lineTo(edgeLZ.x, edgeLZ.y);
   ctx.closePath(); ctx.fill();
+  // darker shoulders
+  ctx.fillStyle = 'rgba(0,0,0,.13)';
+  for (const s of [-1, 1]) {
+    const a = project(s * 1.55, 0), b = project(s * 1.42, 0);
+    const az = project(s * 1.55, ZMAX), bz = project(s * 1.42, ZMAX);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(bz.x, bz.y); ctx.lineTo(az.x, az.y);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // white picket fences along the track
+  {
+    const foff = (G.dist * 10) % 130;
+    for (const fl of [-1.78, 1.78]) {
+      const r0 = project(fl, 0), rz = project(fl, ZMAX);
+      const h0 = LANE_W() * 0.26, hz = LANE_W() * 0.26 * rz.p;
+      ctx.strokeStyle = 'rgba(250,246,235,.85)';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(r0.x, r0.y - h0 * 0.62); ctx.lineTo(rz.x, rz.y - hz * 0.62);
+      ctx.stroke();
+      ctx.fillStyle = 'rgba(250,246,235,.9)';
+      for (let z = -foff; z < ZMAX; z += 130) {
+        const pp = project(fl, Math.max(0.001, z));
+        const ph = LANE_W() * 0.26 * pp.p;
+        ctx.fillRect(pp.x - ph * 0.07, pp.y - ph, ph * 0.14, ph);
+      }
+    }
+  }
 
   // railway tracks: sleepers + rails per lane
   const quad = (a, b, c, d) => {
@@ -1061,6 +1224,35 @@ function render() {
   }
   ctx.globalAlpha = 1;
   ctx.restore();
+
+  // super-boost speed lines
+  if (G.pu.boost > 0 && G.state === 'playing') {
+    ctx.strokeStyle = 'rgba(255,255,255,.45)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 9; i++) {
+      const x = Math.random() < 0.5 ? rand(0, W * 0.16) : rand(W * 0.84, W);
+      const y = rand(0, H * 0.9);
+      const len = rand(40, 130);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (x - W / 2) * 0.06, y + len);
+      ctx.stroke();
+    }
+  }
+
+  // night-time mood tint
+  if (nightW > 0.05) {
+    ctx.fillStyle = `rgba(14,14,72,${0.3 * nightW})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // soft cinematic vignette
+  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.78);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,.22)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
 }
 
 const TRAIN_COLORS = ['#e8443a', '#3a7be8', '#9b59d0', '#1faa59', '#e8930c'];
@@ -1072,35 +1264,107 @@ function drawObstacle(o) {
   const w = LANE_W() * 0.86 * front.p;
 
   if (o.kind === 'train') {
-    const h = w * 1.15;
+    const col = TRAIN_COLORS[o.hue];
+    const h = w * 1.18;
     const bw = LANE_W() * 0.86 * back.p;
-    // body (roof from back to front)
-    ctx.fillStyle = TRAIN_COLORS[o.hue];
+    const hb = bw * 1.18;
+
+    // ground shadow
+    ctx.fillStyle = 'rgba(0,0,0,.22)';
     ctx.beginPath();
-    ctx.moveTo(back.x - bw / 2, back.y - bw * 1.15);
-    ctx.lineTo(back.x + bw / 2, back.y - bw * 1.15);
+    ctx.moveTo(front.x - w * 0.55, front.y + h * 0.04);
+    ctx.lineTo(front.x + w * 0.55, front.y + h * 0.04);
+    ctx.lineTo(back.x + bw * 0.55, back.y);
+    ctx.lineTo(back.x - bw * 0.55, back.y);
+    ctx.closePath(); ctx.fill();
+
+    // visible side (when the train is in a side lane)
+    const sideDir = o.lane < -0.1 ? 0.46 : o.lane > 0.1 ? -0.46 : 0;
+    if (sideDir) {
+      const gF = project(o.lane + sideDir, Math.max(0.001, o.z));
+      const gB = project(o.lane + sideDir, Math.max(0.001, o.z + o.len));
+      const sg = ctx.createLinearGradient(0, front.y - h, 0, front.y);
+      sg.addColorStop(0, shade(col, -0.1));
+      sg.addColorStop(1, shade(col, -0.45));
+      ctx.fillStyle = sg;
+      ctx.beginPath();
+      ctx.moveTo(gF.x, front.y); ctx.lineTo(gF.x, front.y - h * 0.96);
+      ctx.lineTo(gB.x, back.y - hb * 0.96); ctx.lineTo(gB.x, back.y);
+      ctx.closePath(); ctx.fill();
+      // side windows
+      ctx.fillStyle = 'rgba(200,235,255,.85)';
+      for (let t = 0.18; t < 0.85; t += 0.22) {
+        const x1 = lerp(gF.x, gB.x, t), x2 = lerp(gF.x, gB.x, t + 0.13);
+        const yTop1 = lerp(front.y - h * 0.82, back.y - hb * 0.82, t);
+        const yBot1 = lerp(front.y - h * 0.52, back.y - hb * 0.52, t);
+        const yTop2 = lerp(front.y - h * 0.82, back.y - hb * 0.82, t + 0.13);
+        const yBot2 = lerp(front.y - h * 0.52, back.y - hb * 0.52, t + 0.13);
+        ctx.beginPath();
+        ctx.moveTo(x1, yTop1); ctx.lineTo(x2, yTop2); ctx.lineTo(x2, yBot2); ctx.lineTo(x1, yBot1);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+
+    // roof
+    const rg = ctx.createLinearGradient(front.x - w / 2, 0, front.x + w / 2, 0);
+    rg.addColorStop(0, shade(col, 0.05));
+    rg.addColorStop(0.5, shade(col, 0.3));
+    rg.addColorStop(1, shade(col, 0.05));
+    ctx.fillStyle = rg;
+    ctx.beginPath();
+    ctx.moveTo(back.x - bw / 2, back.y - hb * 0.96);
+    ctx.lineTo(back.x + bw / 2, back.y - hb * 0.96);
     ctx.lineTo(front.x + w / 2, front.y - h);
     ctx.lineTo(front.x - w / 2, front.y - h);
     ctx.closePath(); ctx.fill();
-    // front face
-    ctx.fillStyle = lerpColor(TRAIN_COLORS[o.hue], '#000000', 0.18);
-    rr(front.x - w / 2, front.y - h, w, h, w * 0.12);
-    // windscreen
-    ctx.fillStyle = '#bfe8ff';
-    rr(front.x - w * 0.32, front.y - h * 0.88, w * 0.64, h * 0.3, w * 0.07);
-    // lights
-    ctx.fillStyle = '#ffe14d';
-    ctx.beginPath();
-    ctx.arc(front.x - w * 0.28, front.y - h * 0.18, w * 0.08, 0, 7);
-    ctx.arc(front.x + w * 0.28, front.y - h * 0.18, w * 0.08, 0, 7);
-    ctx.fill();
+
+    // front face with lighting + outline
+    const fg = ctx.createLinearGradient(0, front.y - h, 0, front.y);
+    fg.addColorStop(0, shade(col, 0.12));
+    fg.addColorStop(1, shade(col, -0.28));
+    ctx.fillStyle = fg;
+    rr(front.x - w / 2, front.y - h, w, h, w * 0.13);
+    ctx.strokeStyle = shade(col, -0.5);
+    ctx.lineWidth = Math.max(1, w * 0.03);
+    ctx.beginPath(); rrPath(front.x - w / 2, front.y - h, w, h, w * 0.13); ctx.stroke();
+
+    // windscreen with sky reflection
+    const wg = ctx.createLinearGradient(0, front.y - h * 0.9, 0, front.y - h * 0.55);
+    wg.addColorStop(0, '#e6f7ff');
+    wg.addColorStop(1, '#8fc9ec');
+    ctx.fillStyle = wg;
+    rr(front.x - w * 0.34, front.y - h * 0.88, w * 0.68, h * 0.32, w * 0.07);
+    // bumper stripe
+    ctx.fillStyle = shade(col, 0.35);
+    rr(front.x - w * 0.42, front.y - h * 0.42, w * 0.84, h * 0.09, w * 0.04);
+    // headlights with glow
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = 'rgba(255,235,130,.35)';
+      ctx.beginPath(); ctx.arc(front.x + s * w * 0.28, front.y - h * 0.2, w * 0.15, 0, 7); ctx.fill();
+      ctx.fillStyle = '#ffe14d';
+      ctx.beginPath(); ctx.arc(front.x + s * w * 0.28, front.y - h * 0.2, w * 0.08, 0, 7); ctx.fill();
+    }
     // cowcatcher
-    ctx.fillStyle = '#555';
+    ctx.fillStyle = '#4d4d55';
     ctx.beginPath();
-    ctx.moveTo(front.x - w * 0.45, front.y - h * 0.06);
-    ctx.lineTo(front.x + w * 0.45, front.y - h * 0.06);
-    ctx.lineTo(front.x, front.y + h * 0.06);
+    ctx.moveTo(front.x - w * 0.46, front.y - h * 0.07);
+    ctx.lineTo(front.x + w * 0.46, front.y - h * 0.07);
+    ctx.lineTo(front.x, front.y + h * 0.07);
     ctx.closePath(); ctx.fill();
+    // wheels
+    ctx.fillStyle = '#2b2b30';
+    ctx.beginPath();
+    ctx.arc(front.x - w * 0.3, front.y - h * 0.02, w * 0.09, 0, 7);
+    ctx.arc(front.x + w * 0.3, front.y - h * 0.02, w * 0.09, 0, 7);
+    ctx.fill();
+    // charging trains puff smoke
+    if (o.vz > 0 && Math.random() < 0.25) {
+      G.parts.push({
+        x: front.x + rand(-w * 0.2, w * 0.2), y: front.y - h,
+        vx: rand(-20, 20), vy: rand(-120, -50),
+        life: rand(0.4, 0.8), color: 'rgba(235,235,240,.7)', size: rand(4, 9) * front.p,
+      });
+    }
   } else if (o.kind === 'hurdle') {
     const h = w * 0.42;
     ctx.fillStyle = '#888';
@@ -1120,6 +1384,14 @@ function drawObstacle(o) {
       ctx.restore();
     }
     ctx.restore();
+    // blinking beacon on top
+    const blinkOn = Math.floor(G.phase * 4) % 2 === 0;
+    ctx.fillStyle = blinkOn ? '#ffce3a' : '#8a6d1f';
+    ctx.beginPath(); ctx.arc(front.x, front.y - h * 1.12, w * 0.06, 0, 7); ctx.fill();
+    if (blinkOn) {
+      ctx.fillStyle = 'rgba(255,206,58,.3)';
+      ctx.beginPath(); ctx.arc(front.x, front.y - h * 1.12, w * 0.13, 0, 7); ctx.fill();
+    }
   } else { // bar — roll under it!
     const postH = w * 1.25;
     ctx.fillStyle = '#777';
@@ -1131,6 +1403,14 @@ function drawObstacle(o) {
     ctx.font = `800 ${Math.max(9, w * 0.22)}px "Baloo 2","Comic Sans MS",sans-serif`;
     ctx.textAlign = 'center';
     ctx.fillText('DUCK!', front.x, front.y - postH + w * 0.34);
+    // alternating red warning lights
+    const lit = Math.floor(G.phase * 4) % 2;
+    for (let i = 0; i < 2; i++) {
+      ctx.fillStyle = i === lit ? '#ff5a4d' : '#7a2620';
+      ctx.beginPath();
+      ctx.arc(front.x + (i === 0 ? -1 : 1) * w * 0.35, front.y - postH - w * 0.07, w * 0.06, 0, 7);
+      ctx.fill();
+    }
   }
 }
 
@@ -1160,6 +1440,17 @@ function drawCoin(c) {
   ctx.beginPath(); ctx.ellipse(pr.x, y, r * Math.max(0.12, sq * 0.82), r * 0.82, 0, 0, 7); ctx.fill();
   ctx.fillStyle = '#fff3b0';
   ctx.beginPath(); ctx.ellipse(pr.x - r * 0.2 * sq, y - r * 0.25, r * 0.16 * Math.max(0.3, sq), r * 0.2, 0, 0, 7); ctx.fill();
+  // twinkling sparkle
+  if (Math.sin(c.spin * 2.3) > 0.93) {
+    ctx.strokeStyle = 'rgba(255,255,255,.95)';
+    ctx.lineWidth = Math.max(1, r * 0.12);
+    ctx.lineCap = 'round';
+    const sx = pr.x + r * 0.7, sy = y - r * 0.8, sl = r * 0.45;
+    ctx.beginPath();
+    ctx.moveTo(sx - sl, sy); ctx.lineTo(sx + sl, sy);
+    ctx.moveTo(sx, sy - sl); ctx.lineTo(sx, sy + sl);
+    ctx.stroke();
+  }
 }
 
 function drawPickup(p) {
