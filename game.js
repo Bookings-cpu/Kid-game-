@@ -112,11 +112,42 @@ let S = (() => {
     const raw = localStorage.getItem(SAVE_KEY);
     if (raw) {
       const got = JSON.parse(raw);
-      for (const k of Object.keys(d)) if (got[k] !== undefined) d[k] = got[k];
-      d.upgrades = Object.assign(defaultSave().upgrades, d.upgrades);
-      d.stats = Object.assign(defaultSave().stats, d.stats);
+      if (got && typeof got === 'object' && !Array.isArray(got)) {
+        for (const k of Object.keys(d)) if (got[k] !== undefined) d[k] = got[k];
+      }
     }
   } catch (e) { /* corrupted save — start fresh */ }
+
+  // sanitize: a tampered or corrupted save must never break the game
+  const fresh = defaultSave();
+  const num = (v, def) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : def);
+  for (const k of ['coins', 'best', 'boxes', 'hoverboards', 'xp', 'missionLvl']) d[k] = num(d[k], fresh[k]);
+  for (const k of ['sound', 'music']) d[k] = typeof d[k] === 'boolean' ? d[k] : true;
+  d.doubler = d.doubler === true;
+  d.seenHowto = d.seenHowto === true;
+  if (typeof d.character !== 'string' || !CHARACTERS.some(c => c.id === d.character)) d.character = 'zip';
+  if (!Array.isArray(d.owned)) d.owned = ['zip'];
+  d.owned = d.owned.filter(id => CHARACTERS.some(c => c.id === id));
+  if (!d.owned.includes('zip')) d.owned.unshift('zip');
+  if (!d.owned.includes(d.character)) d.character = 'zip';
+  if (!Array.isArray(d.missions)) d.missions = [];
+  d.missions = d.missions.filter(m =>
+    m && typeof m === 'object' && MISSION_TPLS.some(t => t.tpl === m.tpl) &&
+    Number.isFinite(m.target) && m.target > 0 && Number.isFinite(m.prog));
+  if (!d.upgrades || typeof d.upgrades !== 'object') d.upgrades = fresh.upgrades;
+  for (const k of Object.keys(fresh.upgrades)) d.upgrades[k] = clamp(num(d.upgrades[k], 1) || 1, 1, MAX_UPG);
+  if (!d.stats || typeof d.stats !== 'object') d.stats = fresh.stats;
+  for (const k of Object.keys(fresh.stats)) d.stats[k] = num(d.stats[k], 0);
+  if (!d.daily || typeof d.daily !== 'object') d.daily = fresh.daily;
+  d.daily.last = typeof d.daily.last === 'string' ? d.daily.last : '';
+  d.daily.streak = num(d.daily.streak, 0);
+  if (!d.wordHunt || typeof d.wordHunt !== 'object' ||
+      !Array.isArray(d.wordHunt.got) || d.wordHunt.got.length !== HUNT_WORD.length) {
+    d.wordHunt = fresh.wordHunt;
+  }
+  d.wordHunt.date = typeof d.wordHunt.date === 'string' ? d.wordHunt.date : '';
+  d.wordHunt.got = d.wordHunt.got.map(g => g === true);
+  d.wordHunt.streak = num(d.wordHunt.streak, 0);
   return d;
 })();
 
@@ -764,6 +795,8 @@ function startRun() {
     combo: 0, comboT: 0,
   });
   if (charDef().bonus.startShield) G.pu.shield = puDuration('shield');
+  clearInterval(Ad.timer);
+  Ad.onReward = null; // a new run voids any pending ad reward
   hideOverlays();
   showScreen('game');
   refreshBalances();
@@ -1309,6 +1342,7 @@ function startContinueCountdown() {
 }
 
 function revive() {
+  if (G.state !== 'continue') return; // stale ad reward / double-click — the run is gone
   clearInterval(G.continueTimer);
   $('ovl-continue').classList.add('hidden');
   G.revives++;
@@ -1326,6 +1360,7 @@ function revive() {
 }
 
 function gameOver() {
+  if (G.state !== 'continue' && G.state !== 'dying') return; // never bank a run twice
   clearInterval(G.continueTimer);
   $('ovl-continue').classList.add('hidden');
   G.state = 'over';
@@ -2513,6 +2548,7 @@ bind('btn-quit', () => { G.state = 'menu'; $('ovl-pause').classList.add('hidden'
 
 /* continue screen */
 bind('btn-revive-coins', () => {
+  if (G.state !== 'continue') return;
   const cost = reviveCost();
   // run coins are spent first, then the bank
   if (S.coins + G.runCoins < cost) {
@@ -2528,14 +2564,17 @@ bind('btn-revive-coins', () => {
   revive();
 });
 bind('btn-revive-ad', () => {
+  if (G.state !== 'continue') return;
   clearInterval(G.continueTimer); // freeze the countdown while the ad plays
   openAd(() => revive());
 });
-bind('btn-no-thanks', () => gameOver());
+bind('btn-no-thanks', () => { if (G.state === 'continue') gameOver(); });
 
 /* game over */
 bind('btn-double', () => {
+  if (G.state !== 'over' || G.doubled) return;
   openAd(() => {
+    if (G.state !== 'over' || G.doubled) return; // run already left behind
     S.coins += G.runCoins;
     G.doubled = true;
     save();
