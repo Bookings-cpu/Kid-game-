@@ -99,6 +99,7 @@ function defaultSave() {
     boxes: 0,
     hoverboards: 1,
     doubler: false,
+    xp: 0,
     wordHunt: { date: '', got: [false, false, false, false, false, false], streak: 0 },
     seenHowto: false,
     stats: { runs: 0, totalCoins: 0, totalDist: 0, jumps: 0, slides: 0, powerups: 0 },
@@ -130,6 +131,13 @@ function addCoins(n) {
 }
 
 function charDef() { return CHARACTERS.find(c => c.id === S.character) || CHARACTERS[0]; }
+
+/* ============================== player level / XP ============================== */
+function levelInfo() {
+  let lvl = 1, need = 300, xp = S.xp || 0;
+  while (xp >= need) { xp -= need; lvl++; need = 300 + (lvl - 1) * 150; }
+  return { lvl, frac: xp / need };
+}
 
 /* ============================== missions ============================== */
 function newMission(excludeTpls) {
@@ -399,6 +407,9 @@ function refreshBalances() {
   }
   $('menu-best').textContent = fmt(S.best);
   $('menu-boxes').textContent = fmt(S.boxes);
+  const li = levelInfo();
+  $('menu-level').textContent = `⭐ Lv ${li.lvl}`;
+  $('xp-fill').style.width = (li.frac * 100).toFixed(1) + '%';
 }
 
 /* ---------- simulated rewarded ad ---------- */
@@ -692,7 +703,9 @@ const HORIZON = () => H * 0.36;
 const BASE_Y = () => H * 0.86;
 
 function project(laneF, z) {
-  const p = CAMD / (z + CAMD);
+  // perspective tightens as you speed up — the world rushes harder
+  const camd = CAMD - clamp((G.speed - 300) / 460, 0, 1) * 38;
+  const p = camd / (z + camd);
   return {
     // the camera trails the player half a lane — parallax like a real 3D chase cam
     x: W / 2 + (laneF - G.camX) * LANE_W() * p,
@@ -725,6 +738,7 @@ const G = {
   pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
   boardT: 0, themeIdx: 0, camX: 0, roll: 0,
   fever: 0, flashT: 0, nextMile: 500, queueJump: false,
+  jumpDur: 0.62, jumpPow: 1, chaseT: 0, trail: [],
   revives: 0, invinc: 0, shake: 0, dieT: 0, phase: 0,
   runMissions: [], doubled: false, lastSafe: 1,
   combo: 0, comboT: 0,
@@ -742,6 +756,7 @@ function startRun() {
     pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
     boardT: 0, themeIdx: 0, camX: 0, roll: 0,
     fever: 0, flashT: 0, nextMile: 500, queueJump: false,
+    jumpDur: 0.62, jumpPow: 1, chaseT: 2.6, trail: [],
     revives: 0, invinc: 1.5, shake: 0, dieT: 0, phase: 0,
     runMissions: [], doubled: false, lastSafe: 1,
     combo: 0, comboT: 0,
@@ -830,6 +845,16 @@ function spawnChunk() {
   if (li >= 0 && Math.random() < 0.12) {
     G.letters.push({ idx: li, laneF: safeLane, z: SPAWN_Z + 200, spin: 0 });
   }
+  // launch ramps: hit one for a SUPER JUMP into a sky-high coin arc
+  if (Math.random() < 0.15) {
+    G.obstacles.push({ kind: 'ramp', lane: safeLane, z: SPAWN_Z + 320, len: 36, hue: 0, vz: 0 });
+    for (let i = 0; i < 6; i++) {
+      G.coins.push({
+        laneF: safeLane, z: SPAWN_Z + 430 + i * 60, spin: rand(0, 6),
+        h: Math.sin(((i + 1) / 7) * Math.PI) * 1.5,
+      });
+    }
+  }
 }
 
 const THEME_DECOR = [
@@ -858,6 +883,8 @@ function doJump() {
   if (G.state !== 'playing') return;
   if (G.jumpT < 0 && G.slideT < 0) {
     G.jumpT = 0;
+    G.jumpDur = JUMP_DUR;
+    G.jumpPow = 1;
     AudioSys.sfx('jump');
     S.stats.jumps++; missionEvent('jumps', 1);
   } else if (G.jumpT >= 0) {
@@ -935,14 +962,16 @@ function update(dt) {
   // jump / slide timers (with a landing puff + buffered jumps)
   if (G.jumpT >= 0) {
     G.jumpT += dt;
-    if (G.jumpT > JUMP_DUR) {
+    if (G.jumpT > G.jumpDur) {
       G.jumpT = -1;
+      G.jumpPow = 1; G.jumpDur = JUMP_DUR;
       const pr = project(G.laneF, 0);
       burst(pr.x, pr.y - 6, 'rgba(230,225,210,.9)', 7);
       G.shake = Math.max(G.shake, 2.5);
       if (G.queueJump) { G.queueJump = false; G.jumpT = 0; AudioSys.sfx('jump'); S.stats.jumps++; }
     }
   }
+  if (G.chaseT > 0) G.chaseT -= dt;
   if (G.slideT >= 0) { G.slideT += dt; if (G.slideT > SLIDE_DUR) G.slideT = -1; }
   if (G.invinc > 0) G.invinc -= dt;
 
@@ -1032,7 +1061,7 @@ function update(dt) {
     }
   }
 
-  const jumping = G.jumpT >= 0 && Math.sin((G.jumpT / JUMP_DUR) * Math.PI) > 0.3;
+  const jumping = G.jumpT >= 0 && Math.sin((G.jumpT / G.jumpDur) * Math.PI) > 0.3;
   const sliding = G.slideT >= 0;
 
   // coins flying to the wallet
@@ -1118,6 +1147,20 @@ function update(dt) {
   for (const o of G.obstacles) {
     if (o.hit) continue;
     if (o.z < HITZ && o.z + o.len > -12 && Math.abs(o.lane - G.laneF) < 0.55) {
+      if (o.kind === 'ramp') {
+        // SUPER JUMP! soar over everything and hoover up the sky coins
+        o.hit = true;
+        G.jumpT = 0;
+        G.jumpDur = JUMP_DUR * 1.9;
+        G.jumpPow = 1.8;
+        G.slideT = -1;
+        G.flashT = Math.max(G.flashT, 0.12);
+        AudioSys.sfx('fever');
+        const pr = project(G.laneF, 0);
+        addFloat('🛫 SUPER JUMP!', pr.x, pr.y - H * 0.3, '#7fe0ff', 32);
+        burst(pr.x, pr.y - 20, '#7fe0ff', 14);
+        continue;
+      }
       const cleared = (o.kind === 'hurdle' && jumping) || (o.kind === 'bar' && sliding);
       if (cleared) continue;
       if (G.pu.boost > 0 || G.invinc > 0) { smash(o); continue; }
@@ -1235,6 +1278,7 @@ function revive() {
   // sweep the danger zone so the comeback feels heroic
   G.obstacles = G.obstacles.filter(o => o.z > 420);
   G.state = 'playing';
+  G.chaseT = 2.6;
   AudioSys.sfx('revive');
   toast('🚀 Back in the run!', true);
 }
@@ -1262,6 +1306,24 @@ function gameOver() {
   S.coins += G.runCoins;
   S.stats.runs++;
   missionEvent('runs', 1);
+
+  // XP and level-ups — every run makes you stronger
+  const beforeLvl = levelInfo().lvl;
+  S.xp = (S.xp || 0) + Math.round(score / 10 + G.runCoins);
+  const afterLvl = levelInfo().lvl;
+  if (afterLvl > beforeLvl) {
+    const reward = afterLvl * 100;
+    S.coins += reward;
+    toast(`⬆️ LEVEL ${afterLvl}! +${reward} 🪙`, true);
+    AudioSys.sfx('mission');
+    for (let i = 0; i < 50; i++) {
+      G.parts.push({
+        x: rand(0, W), y: rand(-H * 0.2, 0),
+        vx: rand(-50, 50), vy: rand(60, 180), gentle: true,
+        life: rand(1.5, 3), color: pick(['#ffd23e', '#5ad845', '#54a9ff']), size: rand(3, 7),
+      });
+    }
+  }
   save();
 
   // score ticks up — far more satisfying than a static number
@@ -1677,6 +1739,7 @@ function drawBackdrop(ti, alpha) {
 }
 
 const TRAIN_COLORS = ['#e8443a', '#3a7be8', '#9b59d0', '#1faa59', '#e8930c'];
+const GUARD_DEF = { body: '#8b93a8', belly: '#cfd6e2', hat: 'cap' };
 
 function drawObstacle(o) {
   if (o.z > ZMAX) return;
@@ -1785,6 +1848,35 @@ function drawObstacle(o) {
         vx: rand(-20, 20), vy: rand(-120, -50),
         life: rand(0.4, 0.8), color: 'rgba(235,235,240,.7)', size: rand(4, 9) * front.p,
       });
+    }
+  } else if (o.kind === 'ramp') {
+    // golden launch ramp rising away from the camera
+    const bw = LANE_W() * 0.86 * back.p;
+    const rh = bw * 0.85;
+    const rg2 = ctx.createLinearGradient(0, back.y - rh, 0, front.y);
+    rg2.addColorStop(0, '#ffd23e');
+    rg2.addColorStop(1, '#ff8c1a');
+    ctx.fillStyle = rg2;
+    ctx.beginPath();
+    ctx.moveTo(front.x - w * 0.45, front.y);
+    ctx.lineTo(front.x + w * 0.45, front.y);
+    ctx.lineTo(back.x + bw * 0.45, back.y - rh);
+    ctx.lineTo(back.x - bw * 0.45, back.y - rh);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = '#b06800';
+    ctx.lineWidth = Math.max(1, w * 0.03);
+    ctx.stroke();
+    // upward chevrons
+    ctx.fillStyle = 'rgba(255,255,255,.85)';
+    for (let i = 0; i < 2; i++) {
+      const t = 0.3 + i * 0.35;
+      const cxp = lerp(front.x, back.x, t);
+      const cyp = lerp(front.y, back.y - rh, t);
+      const cs = lerp(w, bw, t) * 0.18;
+      ctx.beginPath();
+      ctx.moveTo(cxp - cs, cyp + cs); ctx.lineTo(cxp, cyp - cs * 0.6); ctx.lineTo(cxp + cs, cyp + cs);
+      ctx.lineTo(cxp, cyp + cs * 0.3);
+      ctx.closePath(); ctx.fill();
     }
   } else if (o.kind === 'hurdle') {
     const h = w * 0.42;
@@ -2023,9 +2115,27 @@ function drawDecor(d) {
 function drawPlayer() {
   const pr = project(G.laneF, 0);
   const size = LANE_W() * 0.58;
-  const jumpH = G.jumpT >= 0 ? Math.sin((G.jumpT / JUMP_DUR) * Math.PI) : 0;
+  const jumpH = G.jumpT >= 0 ? Math.sin((G.jumpT / G.jumpDur) * Math.PI) : 0;
   const boardLift = G.boardT > 0 ? size * 0.14 + Math.sin(G.phase * 6) * size * 0.04 : 0;
-  const y = pr.y - jumpH * H * 0.2 - boardLift;
+  const y = pr.y - jumpH * H * 0.2 * G.jumpPow - boardLift;
+
+  // ribbon trail (rainbow in fever)
+  G.trail.unshift({ x: pr.x, y: y - size * 0.55 });
+  if (G.trail.length > 15) G.trail.pop();
+  if (G.state === 'playing' && G.trail.length > 2) {
+    ctx.lineCap = 'round';
+    for (let i = 1; i < G.trail.length; i++) {
+      const fade = 1 - i / G.trail.length;
+      ctx.strokeStyle = G.fever > 0
+        ? `hsla(${(G.phase * 160 + i * 18) % 360}, 95%, 65%, ${fade * 0.6})`
+        : shade(charDef().body, 0.15).replace('rgb', 'rgba').replace(')', `,${(fade * 0.4).toFixed(2)})`);
+      ctx.lineWidth = size * 0.24 * fade;
+      ctx.beginPath();
+      ctx.moveTo(G.trail[i - 1].x, G.trail[i - 1].y);
+      ctx.lineTo(G.trail[i].x - i * 1.5, G.trail[i].y + i * 0.8);
+      ctx.stroke();
+    }
+  }
 
   // hoverboard under the rider
   if (G.boardT > 0) {
@@ -2061,6 +2171,15 @@ function drawPlayer() {
     slide: G.slideT >= 0 ? Math.sin((G.slideT / SLIDE_DUR) * Math.PI) : 0,
     lean: G.laneTarget - G.laneF,
   });
+
+  // the grumpy guard gives chase after every start and revive!
+  if (G.chaseT > 0 && G.state === 'playing') {
+    const exitDrop = G.chaseT < 0.7 ? (0.7 - G.chaseT) / 0.7 : 0;
+    const gp = project(G.laneF * 0.6, -34);
+    drawCharacter(ctx, gp.x, gp.y + H * 0.015 + exitDrop * H * 0.3, size * 0.95, GUARD_DEF, {
+      run: true, phase: G.phase * 0.92,
+    });
+  }
 
   // bubble shield
   if (G.pu.shield > 0) {
