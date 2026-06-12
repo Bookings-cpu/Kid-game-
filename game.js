@@ -1,5 +1,5 @@
 /* =========================================================================
-   SKY DASH! — an endless-runner game for kids
+   RAIL RASCALS! — an endless-runner game for kids
    Inspired by the most-downloaded mobile games in the world.
    Pure HTML5/Canvas/JS — no dependencies, works offline.
    ========================================================================= */
@@ -50,6 +50,19 @@ const COIN_PACKS = [
 const AD_REWARD = 100;
 const DAILY_REWARDS = [50, 75, 100, 150, 200, 300, 500];
 const REVIVE_BASE = 100;
+const HUNT_WORD = 'RASCAL';
+const HOVERBOARD_TIME = 30;
+const HOVERBOARD_PRICE = 300;
+const BOX_PRICE = 400;
+const DOUBLER_PRICE = 25000;
+
+// rotating worlds — a new land every 2,500m, synced with the sky cycle
+const THEMES = [
+  { name: '🌼 Sunny Meadows', ground: ['#7fd071', '#4fae44'], groundLo: ['#4f9e63', '#2e7d4f'] },
+  { name: '🏜️ Desert Dunes',  ground: ['#eed9a0', '#ddb96e'], groundLo: ['#d4b06a', '#b98f4e'] },
+  { name: '❄️ Snowy Peaks',   ground: ['#eef3fa', '#c4d3e6'], groundLo: ['#b9c9de', '#93a8c4'] },
+  { name: '🍭 Candy Land',    ground: ['#ffb9dc', '#ff9ccc'], groundLo: ['#ff8ac2', '#f06aab'] },
+];
 
 const MISSION_TPLS = [
   { tpl: 'coins',    text: (n) => `Collect ${fmt(n)} coins`,        base: 150,  reward: 100 },
@@ -76,6 +89,10 @@ function defaultSave() {
     missions: [],
     missionLvl: 0,
     daily: { last: '', streak: 0 },
+    boxes: 0,
+    hoverboards: 1,
+    doubler: false,
+    wordHunt: { date: '', got: [false, false, false, false, false, false], streak: 0 },
     seenHowto: false,
     stats: { runs: 0, totalCoins: 0, totalDist: 0, jumps: 0, slides: 0, powerups: 0 },
   };
@@ -167,6 +184,85 @@ function claimMission(idx) {
 function refreshMissionBadge() {
   const any = S.missions.some(m => m.prog >= m.target);
   $('missions-badge').classList.toggle('hidden', !any);
+}
+
+/* ============================== word hunt (daily letters) ============================== */
+function resetWordHuntIfNewDay() {
+  if (S.wordHunt.date === todayStr()) return;
+  const yesterday = new Date(Date.now() - 864e5).toISOString().slice(0, 10);
+  // the streak survives only if yesterday's word was finished
+  if (!(S.wordHunt.date === yesterday && S.wordHunt.got.every(Boolean))) S.wordHunt.streak = 0;
+  S.wordHunt.date = todayStr();
+  S.wordHunt.got = HUNT_WORD.split('').map(() => false);
+  save();
+}
+
+function collectHuntLetter(idx) {
+  if (S.wordHunt.got[idx]) return;
+  S.wordHunt.got[idx] = true;
+  const got = S.wordHunt.got.filter(Boolean).length;
+  AudioSys.sfx('powerup');
+  toast(`✉️ Letter ${HUNT_WORD[idx]}! (${got}/${HUNT_WORD.length})`, true);
+  if (S.wordHunt.got.every(Boolean)) {
+    S.wordHunt.streak++;
+    const nBoxes = S.wordHunt.streak >= 5 ? 2 : 1;
+    S.boxes += nBoxes;
+    S.coins += 200;
+    AudioSys.sfx('mission');
+    toast(`🎉 ${HUNT_WORD} complete! +200 🪙 +${nBoxes} 🎁`, true);
+  }
+  save();
+  refreshBalances();
+}
+
+function nextHuntLetter() {
+  return S.wordHunt.got.findIndex(g => !g); // -1 when today's word is done
+}
+
+/* ============================== mystery boxes ============================== */
+const BOX_REWARDS = [
+  { w: 38, gen: () => ({ text: '🪙 100 coins!', coins: 100 }) },
+  { w: 25, gen: () => ({ text: '🪙 250 coins!', coins: 250 }) },
+  { w: 15, gen: () => ({ text: '🪙 500 coins!!', coins: 500 }) },
+  { w: 14, gen: () => ({ text: '🛹 A hoverboard!', board: 1 }) },
+  { w: 8,  gen: () => ({ text: '💰 JACKPOT! 1,000 coins!!!', coins: 1000, jackpot: true }) },
+];
+
+function rollBox() {
+  const total = BOX_REWARDS.reduce((s, r) => s + r.w, 0);
+  let roll = Math.random() * total;
+  for (const r of BOX_REWARDS) { roll -= r.w; if (roll <= 0) return r.gen(); }
+  return BOX_REWARDS[0].gen();
+}
+
+function openBoxModal() {
+  $('mod-box').classList.remove('hidden');
+  $('box-reward').textContent = '';
+  $('box-art').textContent = '🎁';
+  $('box-art').classList.add('shaking');
+  refreshBoxButtons();
+}
+
+function refreshBoxButtons() {
+  $('btn-box-open').classList.toggle('hidden', S.boxes <= 0);
+  $('btn-box-open').textContent = `Open it! (${fmt(S.boxes)} left)`;
+  $('btn-box-buy').classList.toggle('hidden', S.boxes > 0);
+  $('btn-box-buy').textContent = `Buy a box — 🪙 ${fmt(BOX_PRICE)}`;
+}
+
+function doOpenBox() {
+  if (S.boxes <= 0) return;
+  S.boxes--;
+  const r = rollBox();
+  if (r.coins) S.coins += r.coins;
+  if (r.board) S.hoverboards += r.board;
+  save();
+  $('box-art').textContent = r.jackpot ? '🌟' : '✨';
+  $('box-art').classList.remove('shaking');
+  $('box-reward').textContent = r.text;
+  AudioSys.sfx(r.jackpot ? 'mission' : 'buy');
+  refreshBoxButtons();
+  refreshBalances();
 }
 
 /* ============================== audio ============================== */
@@ -261,6 +357,7 @@ function refreshBalances() {
     $(id).textContent = fmt(S.coins + (G.state === 'playing' || G.state === 'continue' ? G.runCoins : 0));
   }
   $('menu-best').textContent = fmt(S.best);
+  $('menu-boxes').textContent = fmt(S.boxes);
 }
 
 /* ---------- simulated rewarded ad ---------- */
@@ -581,9 +678,10 @@ const G = {
   laneF: 0, laneTarget: 0,
   jumpT: -1, slideT: -1,
   speed: 0, dist: 0, score: 0, runCoins: 0, mult: 1,
-  obstacles: [], coins: [], pickups: [], decor: [], parts: [], floats: [],
+  obstacles: [], coins: [], pickups: [], letters: [], decor: [], parts: [], floats: [],
   spawnAt: 0, decorAt: 0,
   pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
+  boardT: 0, themeIdx: 0,
   revives: 0, invinc: 0, shake: 0, dieT: 0, phase: 0,
   runMissions: [], doubled: false, lastSafe: 1,
   combo: 0, comboT: 0,
@@ -596,9 +694,10 @@ function startRun() {
   Object.assign(G, {
     state: 'playing', laneF: 0, laneTarget: 0, jumpT: -1, slideT: -1,
     speed: 300, dist: 0, score: 0, runCoins: 0, mult: 1,
-    obstacles: [], coins: [], pickups: [], decor: [], parts: [], floats: [],
+    obstacles: [], coins: [], pickups: [], letters: [], decor: [], parts: [], floats: [],
     spawnAt: 300, decorAt: 0,
     pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
+    boardT: 0, themeIdx: 0,
     revives: 0, invinc: 1.5, shake: 0, dieT: 0, phase: 0,
     runMissions: [], doubled: false, lastSafe: 1,
     combo: 0, comboT: 0,
@@ -658,9 +757,15 @@ function spawnChunk() {
       G.coins.push({ laneF: clane, z: SPAWN_Z + 130 + i * 46, spin: rand(0, 6) });
     }
   }
-  // occasional power-up on the safe lane
+  // occasional power-up on the safe lane (sometimes a mystery box!)
   if (Math.random() < 0.16) {
-    G.pickups.push({ kind: pick(Object.keys(POWERUPS)), laneF: safeLane, z: SPAWN_Z + 90, spin: 0 });
+    const kind = Math.random() < 0.22 ? 'box' : pick(Object.keys(POWERUPS));
+    G.pickups.push({ kind, laneF: safeLane, z: SPAWN_Z + 90, spin: 0 });
+  }
+  // word-hunt letters appear until today's word is done
+  const li = nextHuntLetter();
+  if (li >= 0 && Math.random() < 0.12) {
+    G.letters.push({ idx: li, laneF: safeLane, z: SPAWN_Z + 200, spin: 0 });
   }
 }
 
@@ -696,6 +801,14 @@ function doSlide() {
     S.stats.slides++; missionEvent('slides', 1);
   }
 }
+function activateBoard() {
+  if (G.state !== 'playing' || G.boardT > 0 || S.hoverboards <= 0) return;
+  S.hoverboards--;
+  save();
+  G.boardT = HOVERBOARD_TIME;
+  AudioSys.sfx('revive');
+  toast('🛹 Hoverboard ON — crash-proof for 30s!', true);
+}
 
 window.addEventListener('keydown', (e) => {
   if (e.repeat) return;
@@ -705,6 +818,7 @@ window.addEventListener('keydown', (e) => {
     case 'ArrowRight': case 'd': case 'D': doLane(1); break;
     case 'ArrowUp': case 'w': case 'W': case ' ': doJump(); break;
     case 'ArrowDown': case 's': case 'S': doSlide(); break;
+    case 'h': case 'H': activateBoard(); break;
     case 'p': case 'P': case 'Escape':
       if (G.state === 'playing') pauseGame();
       else if (G.state === 'paused') resumeGame();
@@ -788,11 +902,31 @@ function update(dt) {
   }
   for (const c of G.coins) { c.z -= dz; c.spin += dt * 6; }
   for (const p of G.pickups) { p.z -= dz; p.spin += dt * 4; }
+  for (const l of G.letters) { l.z -= dz; l.spin += dt * 3; }
   for (const d of G.decor) d.z -= dz;
   G.obstacles = G.obstacles.filter(o => o.z + o.len > -60);
   G.coins = G.coins.filter(c => c.z > -40 && !c.taken);
   G.pickups = G.pickups.filter(p => p.z > -40 && !p.taken);
+  G.letters = G.letters.filter(l => l.z > -40 && !l.taken);
   G.decor = G.decor.filter(d => d.z > -40);
+
+  // hoverboard timer
+  if (G.boardT > 0) {
+    G.boardT -= dt;
+    if (G.boardT <= 0) { G.boardT = 0; toast('🛹 Hoverboard finished!'); }
+  }
+  // hoverboard button visibility
+  const showBoard = S.hoverboards > 0 && G.boardT <= 0;
+  $('btn-board').classList.toggle('hidden', !showBoard);
+  if (showBoard) $('board-count').textContent = 'x' + S.hoverboards;
+
+  // world theme changes every 2,500m
+  const ti = Math.floor(G.dist / 2500) % THEMES.length;
+  if (ti !== G.themeIdx) {
+    G.themeIdx = ti;
+    addFloat(`${THEMES[ti].name}!`, W / 2, H * 0.32, '#fff');
+    AudioSys.sfx('mission');
+  }
 
   // magnet pulls coins
   if (G.pu.magnet > 0) {
@@ -808,7 +942,7 @@ function update(dt) {
   for (const c of G.coins) {
     if (c.z < HITZ + 14 && c.z > -24 && Math.abs(c.laneF - G.laneF) < 0.6) {
       c.taken = true;
-      const v = Math.round(1 * (1 + (charDef().bonus.coin || 0)) * G.mult);
+      const v = Math.round(1 * (1 + (charDef().bonus.coin || 0)) * G.mult * (S.doubler ? 2 : 1));
       G.runCoins += v;
       S.stats.totalCoins += v;
       missionEvent('coins', v);
@@ -828,17 +962,36 @@ function update(dt) {
     }
   }
 
-  // collect power-ups
+  // collect power-ups & mystery boxes
   for (const p of G.pickups) {
     if (p.z < HITZ + 14 && p.z > -24 && Math.abs(p.laneF - G.laneF) < 0.6) {
       p.taken = true;
-      G.pu[p.kind] = puDuration(p.kind);
-      S.stats.powerups++; missionEvent('powerups', 1);
-      AudioSys.sfx('powerup');
       const pr = project(p.laneF, Math.max(0, p.z));
-      addFloat(POWERUPS[p.kind].icon + ' ' + POWERUPS[p.kind].name + '!', pr.x, pr.y - 70, POWERUPS[p.kind].color);
-      burst(pr.x, pr.y - 40, POWERUPS[p.kind].color, 12);
-      rebuildPuChips();
+      if (p.kind === 'box') {
+        S.boxes++;
+        save();
+        AudioSys.sfx('buy');
+        addFloat('🎁 Mystery Box!', pr.x, pr.y - 70, '#c97aff');
+        burst(pr.x, pr.y - 40, '#c97aff', 12);
+        refreshBalances();
+      } else {
+        G.pu[p.kind] = puDuration(p.kind);
+        S.stats.powerups++; missionEvent('powerups', 1);
+        AudioSys.sfx('powerup');
+        addFloat(POWERUPS[p.kind].icon + ' ' + POWERUPS[p.kind].name + '!', pr.x, pr.y - 70, POWERUPS[p.kind].color);
+        burst(pr.x, pr.y - 40, POWERUPS[p.kind].color, 12);
+        rebuildPuChips();
+      }
+    }
+  }
+
+  // collect word-hunt letters
+  for (const l of G.letters) {
+    if (l.z < HITZ + 14 && l.z > -24 && Math.abs(l.laneF - G.laneF) < 0.6) {
+      l.taken = true;
+      const pr = project(l.laneF, Math.max(0, l.z));
+      burst(pr.x, pr.y - 40, '#ffd23e', 10);
+      collectHuntLetter(l.idx);
     }
   }
 
@@ -849,6 +1002,16 @@ function update(dt) {
       const cleared = (o.kind === 'hurdle' && jumping) || (o.kind === 'bar' && sliding);
       if (cleared) continue;
       if (G.pu.boost > 0 || G.invinc > 0) { smash(o); continue; }
+      // hoverboard takes the hit and shatters — you keep running!
+      if (G.boardT > 0) {
+        G.boardT = 0;
+        smash(o);
+        G.invinc = 1.2;
+        G.shake = 8;
+        toast('🛹 Board smashed — you survived!', true);
+        AudioSys.sfx('crash');
+        continue;
+      }
       if (G.pu.shield > 0) { G.pu.shield = 0; rebuildPuChips(); smash(o); G.invinc = 1.2; continue; }
       crash();
       break;
@@ -1109,10 +1272,11 @@ function render() {
   ctx.save();
   if (G.shake > 0) ctx.translate(rand(-G.shake, G.shake), rand(-G.shake, G.shake));
 
-  // ground with depth shading
+  // ground with depth shading — colours follow the rotating world theme
+  const t0 = THEMES[i0 % THEMES.length], t1 = THEMES[i1 % THEMES.length];
   const gg = ctx.createLinearGradient(0, HORIZON(), 0, H);
-  gg.addColorStop(0, lerpColor('#7fd071', '#4f9e63', ft * 0.5));
-  gg.addColorStop(1, lerpColor('#4fae44', '#2e7d4f', ft * 0.5));
+  gg.addColorStop(0, lerpColor(t0.ground[0], t1.ground[0], ft));
+  gg.addColorStop(1, lerpColor(t0.groundLo[0], t1.groundLo[0], ft));
   ctx.fillStyle = gg;
   ctx.fillRect(0, HORIZON(), W, H - HORIZON());
 
@@ -1200,6 +1364,7 @@ function render() {
   for (const o of G.obstacles) items.push({ z: o.z, draw: () => drawObstacle(o) });
   for (const c of G.coins) items.push({ z: c.z, draw: () => drawCoin(c) });
   for (const p of G.pickups) items.push({ z: p.z, draw: () => drawPickup(p) });
+  for (const l of G.letters) items.push({ z: l.z, draw: () => drawLetter(l) });
   items.push({ z: 0, draw: drawPlayer });
   items.sort((a, b) => b.z - a.z);
   for (const it of items) it.draw();
@@ -1458,13 +1623,35 @@ function drawPickup(p) {
   const pr = project(p.laneF, Math.max(0.001, p.z));
   const r = LANE_W() * 0.22 * pr.p;
   const y = pr.y - r * 1.7 - Math.sin(p.spin) * r * 0.3;
-  ctx.fillStyle = POWERUPS[p.kind].color;
+  const isBox = p.kind === 'box';
+  ctx.fillStyle = isBox ? '#a45ce8' : POWERUPS[p.kind].color;
   ctx.beginPath(); ctx.arc(pr.x, y, r, 0, 7); ctx.fill();
   ctx.fillStyle = 'rgba(255,255,255,.35)';
   ctx.beginPath(); ctx.arc(pr.x - r * 0.3, y - r * 0.3, r * 0.35, 0, 7); ctx.fill();
   ctx.font = `${r * 1.1}px sans-serif`;
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText(POWERUPS[p.kind].icon, pr.x, y + r * 0.05);
+  ctx.fillText(isBox ? '🎁' : POWERUPS[p.kind].icon, pr.x, y + r * 0.05);
+  ctx.textBaseline = 'alphabetic';
+}
+
+function drawLetter(l) {
+  if (l.z > ZMAX) return;
+  const pr = project(l.laneF, Math.max(0.001, l.z));
+  const r = LANE_W() * 0.2 * pr.p;
+  const y = pr.y - r * 1.9 - Math.sin(l.spin * 1.5) * r * 0.3;
+  // glowing golden tile with the hunt letter
+  ctx.fillStyle = 'rgba(255,210,62,.25)';
+  ctx.beginPath(); ctx.arc(pr.x, y, r * 1.7, 0, 7); ctx.fill();
+  const g = ctx.createLinearGradient(0, y - r, 0, y + r);
+  g.addColorStop(0, '#ffe98a'); g.addColorStop(1, '#f0a800');
+  ctx.fillStyle = g;
+  rr(pr.x - r, y - r, r * 2, r * 2, r * 0.3);
+  ctx.strokeStyle = '#8a6200'; ctx.lineWidth = Math.max(1, r * 0.1);
+  ctx.beginPath(); rrPath(pr.x - r, y - r, r * 2, r * 2, r * 0.3); ctx.stroke();
+  ctx.fillStyle = '#5b3a00';
+  ctx.font = `800 ${r * 1.3}px "Baloo 2","Comic Sans MS",sans-serif`;
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.fillText(HUNT_WORD[l.idx], pr.x, y + r * 0.1);
   ctx.textBaseline = 'alphabetic';
 }
 
@@ -1501,7 +1688,26 @@ function drawPlayer() {
   const pr = project(G.laneF, 0);
   const size = LANE_W() * 0.52;
   const jumpH = G.jumpT >= 0 ? Math.sin((G.jumpT / JUMP_DUR) * Math.PI) : 0;
-  const y = pr.y - jumpH * H * 0.2;
+  const boardLift = G.boardT > 0 ? size * 0.14 + Math.sin(G.phase * 6) * size * 0.04 : 0;
+  const y = pr.y - jumpH * H * 0.2 - boardLift;
+
+  // hoverboard under the rider
+  if (G.boardT > 0) {
+    ctx.fillStyle = 'rgba(80,220,255,.35)';
+    ctx.beginPath(); ctx.ellipse(pr.x, y + size * 0.06, size * 0.55, size * 0.14, 0, 0, 7); ctx.fill();
+    const bgr = ctx.createLinearGradient(pr.x - size * 0.5, 0, pr.x + size * 0.5, 0);
+    bgr.addColorStop(0, '#37b6ff'); bgr.addColorStop(0.5, '#7fe0ff'); bgr.addColorStop(1, '#37b6ff');
+    ctx.fillStyle = bgr;
+    rr(pr.x - size * 0.5, y - size * 0.05, size, size * 0.12, size * 0.06);
+    // sparkle trail
+    if (Math.random() < 0.6) {
+      G.parts.push({
+        x: pr.x + rand(-size * 0.4, size * 0.4), y: y + size * 0.08,
+        vx: rand(-30, 30), vy: rand(30, 120),
+        life: rand(0.25, 0.5), color: '#7fe0ff', size: rand(2, 5),
+      });
+    }
+  }
 
   // shadow
   ctx.fillStyle = 'rgba(0,0,0,.25)';
@@ -1572,6 +1778,54 @@ requestAnimationFrame(frame);
 /* ============================== panel rendering ============================== */
 function renderShop() {
   refreshBalances();
+
+  // gear: hoverboards, mystery boxes, the coin doubler
+  const gear = $('gear-list');
+  gear.innerHTML = '';
+  const gearItems = [
+    {
+      emoji: '🛹', name: `Hoverboard (you have ${fmt(S.hoverboards)})`,
+      desc: 'Press 🛹 in a run — crash-proof for 30s!',
+      label: `🪙 ${fmt(HOVERBOARD_PRICE)}`, cls: 'btn-yellow',
+      buy: () => {
+        if (S.coins < HOVERBOARD_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }
+        S.coins -= HOVERBOARD_PRICE; S.hoverboards++; save();
+        AudioSys.sfx('buy'); toast('🛹 Hoverboard added!', true); renderShop();
+      },
+    },
+    {
+      emoji: '🎁', name: `Mystery Box (you have ${fmt(S.boxes)})`,
+      desc: 'Random surprise: coins, boards… or the JACKPOT!',
+      label: `🪙 ${fmt(BOX_PRICE)}`, cls: 'btn-yellow',
+      buy: () => {
+        if (S.coins < BOX_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }
+        S.coins -= BOX_PRICE; S.boxes++; save();
+        AudioSys.sfx('buy'); renderShop(); openBoxModal();
+      },
+    },
+    {
+      emoji: '✨', name: 'Coin Doubler',
+      desc: S.doubler ? 'Active — every coin counts twice, forever!' : 'Every coin counts TWICE — forever!',
+      label: S.doubler ? 'OWNED!' : `🪙 ${fmt(DOUBLER_PRICE)}`, cls: S.doubler ? 'btn-grey' : 'btn-yellow',
+      disabled: S.doubler,
+      buy: () => {
+        if (S.coins < DOUBLER_PRICE) { toast(`Need ${fmt(DOUBLER_PRICE - S.coins)} more coins!`); return; }
+        S.coins -= DOUBLER_PRICE; S.doubler = true; save();
+        AudioSys.sfx('mission'); toast('✨ COIN DOUBLER unlocked forever!', true); renderShop();
+      },
+    },
+  ];
+  for (const g of gearItems) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.innerHTML = `
+      <div class="card-emoji">${g.emoji}</div>
+      <div class="card-info"><b>${g.name}</b><span>${g.desc}</span></div>
+      <button class="btn ${g.cls}" ${g.disabled ? 'disabled' : ''}>${g.label}</button>`;
+    if (!g.disabled) card.querySelector('button').addEventListener('click', () => { AudioSys.sfx('click'); g.buy(); });
+    gear.appendChild(card);
+  }
+
   const list = $('upgrade-list');
   list.innerHTML = '';
   for (const k of Object.keys(POWERUPS)) {
@@ -1649,6 +1903,23 @@ function renderChars() {
 function renderMissions() {
   refreshBalances();
   ensureMissions();
+  resetWordHuntIfNewDay();
+
+  // daily word hunt card
+  const wh = $('wordhunt-card');
+  const done = S.wordHunt.got.every(Boolean);
+  const tiles = HUNT_WORD.split('').map((ch, i) =>
+    `<span class="hunt-tile ${S.wordHunt.got[i] ? 'got' : ''}">${S.wordHunt.got[i] ? ch : '?'}</span>`).join('');
+  wh.innerHTML = `
+    <div class="card mission-card hunt-card">
+      <div class="mission-top">
+        <b>✉️ Daily Word Hunt ${done ? '— DONE! 🎉' : ''}</b>
+        <span class="hunt-streak">🔥 ${S.wordHunt.streak} day${S.wordHunt.streak === 1 ? '' : 's'}</span>
+      </div>
+      <div class="hunt-tiles">${tiles}</div>
+      <div class="mission-prog">${done ? 'Come back tomorrow for a new word!' : `Grab golden letters during runs to spell ${HUNT_WORD} — win coins + a Mystery Box!`}</div>
+    </div>`;
+
   const list = $('mission-list');
   list.innerHTML = '';
   S.missions.forEach((m, i) => {
@@ -1713,6 +1984,17 @@ for (const b of document.querySelectorAll('.btn-back')) {
 }
 
 bind('btn-pause', pauseGame);
+bind('btn-board', activateBoard);
+bind('btn-boxes', openBoxModal);
+bind('btn-box-open', doOpenBox);
+bind('btn-box-buy', () => {
+  if (S.coins < BOX_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }
+  S.coins -= BOX_PRICE; S.boxes++; save();
+  AudioSys.sfx('buy');
+  refreshBoxButtons();
+  refreshBalances();
+});
+bind('btn-box-close', () => $('mod-box').classList.add('hidden'));
 bind('btn-resume', resumeGame);
 bind('btn-restart', startRun);
 bind('btn-quit', () => { G.state = 'menu'; $('ovl-pause').classList.add('hidden'); showScreen('menu'); });
@@ -1837,5 +2119,6 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 ensureMissions();
+resetWordHuntIfNewDay();
 showScreen('menu');
 checkDaily();

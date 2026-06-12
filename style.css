@@ -206,6 +206,35 @@ button { font-family:inherit; }
 .howto-row { display:flex; align-items:center; gap:10px; font-size:16px; }
 .howto-key { background:rgba(255,255,255,.15); border-radius:10px; padding:5px 10px; min-width:58px; text-align:center; }
 
+/* mystery box */
+.pill-btn { border:none; cursor:pointer; color:#fff; font-family:inherit; }
+.pill-btn:active { transform:scale(.94); }
+#box-art { font-size:84px; line-height:1.1; }
+#box-art.shaking { animation:boxshake .7s ease-in-out infinite; }
+@keyframes boxshake {
+  0%,100% { transform:rotate(0); } 20% { transform:rotate(-9deg) scale(1.04); }
+  40% { transform:rotate(8deg); } 60% { transform:rotate(-6deg) scale(1.06); } 80% { transform:rotate(5deg); }
+}
+#box-reward { font-size:22px; font-weight:900; color:#ffd23e; min-height:30px; text-shadow:0 2px 0 rgba(0,0,0,.3); }
+
+/* hoverboard button */
+.btn-board {
+  position:absolute; bottom:26px; left:16px; pointer-events:auto;
+  background:linear-gradient(180deg,#54d8ff,#1f8fe0); font-size:22px; padding:12px 18px;
+  border-radius:50px; animation:pulse 1.4s infinite;
+}
+
+/* word hunt */
+.hunt-card { border:2px dashed rgba(255,210,62,.55); }
+.hunt-tiles { display:flex; gap:7px; justify-content:center; padding:4px 0; }
+.hunt-tile {
+  width:38px; height:44px; border-radius:10px; background:rgba(255,255,255,.14);
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; font-weight:900; color:rgba(255,255,255,.45);
+}
+.hunt-tile.got { background:linear-gradient(180deg,#ffe98a,#f0a800); color:#5b3a00; box-shadow:0 3px 0 rgba(0,0,0,.25); }
+.hunt-streak { font-size:14px; font-weight:800; color:#ffd23e; }
+
 /* toasts */
 #toasts { position:fixed; top:14%; left:0; right:0; display:flex; flex-direction:column; align-items:center; gap:8px; z-index:90; pointer-events:none; }
 .toast {

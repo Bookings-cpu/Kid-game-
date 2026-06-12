@@ -27,6 +27,7 @@
   </div>
   <div class="menu-top">
     <div class="pill coin-pill">🪙 <span id="menu-coins">0</span></div>
+    <button id="btn-boxes" class="pill pill-btn">🎁 <span id="menu-boxes">0</span></button>
     <div class="pill">🏆 <span id="menu-best">0</span></div>
   </div>
   <h1 class="game-title">RAIL<br>RASCALS!</h1>
@@ -52,6 +53,7 @@
     </div>
     <div class="pill coin-pill hud-coins">🪙 <span id="hud-coins">0</span></div>
     <div id="hud-powerups"></div>
+    <button id="btn-board" class="btn btn-board hidden">🛹 <span id="board-count"></span></button>
   </div>
 </div>
 
@@ -63,6 +65,8 @@
     <div class="pill coin-pill">🪙 <span id="shop-coins">0</span></div>
   </div>
   <div class="panel-body">
+    <h3 class="section-title">🛹 Gear</h3>
+    <div id="gear-list"></div>
     <h3 class="section-title">⚡ Power-Up Upgrades</h3>
     <div id="upgrade-list"></div>
     <h3 class="section-title">🎬 Free Coins</h3>
@@ -109,6 +113,7 @@
   </div>
   <div class="panel-body">
     <p class="section-sub">Finish missions to win bonus coins!</p>
+    <div id="wordhunt-card"></div>
     <div id="mission-list"></div>
   </div>
 </div>
@@ -201,6 +206,18 @@
     <p class="gate-sub">Come back every day for bigger gifts!</p>
     <div id="daily-grid"></div>
     <button id="btn-daily-claim" class="btn btn-big btn-yellow">🎁 Claim!</button>
+  </div>
+</div>
+
+<!-- ================= MYSTERY BOX ================= -->
+<div id="mod-box" class="overlay hidden">
+  <div class="dialog">
+    <h2>🎁 Mystery Box</h2>
+    <div id="box-art" class="shaking">🎁</div>
+    <div id="box-reward"></div>
+    <button id="btn-box-open" class="btn btn-big btn-yellow">Open it!</button>
+    <button id="btn-box-buy" class="btn btn-big btn-blue hidden">Buy a box</button>
+    <button id="btn-box-close" class="btn btn-link">Close</button>
   </div>
 </div>
 
