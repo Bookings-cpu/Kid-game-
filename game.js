@@ -481,6 +481,7 @@ function project(laneF, z) {
 const SKIES = [
   ['#4aa9ff', '#bfe6ff'], ['#ff9a5c', '#ffd9a0'], ['#1b1464', '#4a3f9e'], ['#ff7eb3', '#ffd1dc'],
 ];
+const STARS = Array.from({ length: 42 }, () => [Math.random(), Math.random() * 0.9, rand(0.3, 1)]);
 function lerpColor(c1, c2, t) {
   const p = (c) => [parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)];
   const a = p(c1), b = p(c2);
@@ -498,6 +499,7 @@ const G = {
   pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
   revives: 0, invinc: 0, shake: 0, dieT: 0, phase: 0,
   runMissions: [], doubled: false, lastSafe: 1,
+  combo: 0, comboT: 0,
   continueTimer: null,
 };
 
@@ -512,6 +514,7 @@ function startRun() {
     pu: { magnet: 0, mult: 0, boost: 0, shield: 0 },
     revives: 0, invinc: 1.5, shake: 0, dieT: 0, phase: 0,
     runMissions: [], doubled: false, lastSafe: 1,
+    combo: 0, comboT: 0,
   });
   if (charDef().bonus.startShield) G.pu.shield = puDuration('shield');
   hideOverlays();
@@ -553,6 +556,7 @@ function spawnChunk() {
       kind, lane, z: SPAWN_Z + rand(0, 60),
       len: kind === 'train' ? rand(150, 260) : 26,
       hue: irand(0, 4),
+      vz: (kind === 'train' && Math.random() < 0.25) ? rand(70, 150) : 0, // some trains charge at you
     });
   });
   const safeLane = safe.length ? pick(safe) : 0;
@@ -676,8 +680,25 @@ function update(dt) {
   G.decorAt -= dz;
   if (G.decorAt <= 0) { spawnDecor(); G.decorAt = rand(90, 200); }
 
-  // move world
-  for (const o of G.obstacles) o.z -= dz;
+  // combo chain decays if you stop collecting
+  if (G.comboT > 0) { G.comboT -= dt; if (G.comboT <= 0) G.combo = 0; }
+
+  // move world (some trains rush toward you!)
+  for (const o of G.obstacles) {
+    o.z -= dz + (o.vz || 0) * dt;
+    // near-miss bonus: a train thunders past one lane over
+    if (!o.passed && o.z < -2) {
+      o.passed = true;
+      if (o.kind === 'train') {
+        const d = Math.abs(o.lane - G.laneF);
+        if (d > 0.55 && d < 1.5) {
+          G.score += 25;
+          const pr = project(G.laneF, 0);
+          addFloat('😅 Close call! +25', pr.x, pr.y - H * 0.28, '#7fe0ff');
+        }
+      }
+    }
+  }
   for (const c of G.coins) { c.z -= dz; c.spin += dt * 6; }
   for (const p of G.pickups) { p.z -= dz; p.spin += dt * 4; }
   for (const d of G.decor) d.z -= dz;
@@ -708,6 +729,14 @@ function update(dt) {
       const pr = project(c.laneF, Math.max(0, c.z));
       addFloat(`+${v}`, pr.x, pr.y - 60, '#ffd23e');
       burst(pr.x, pr.y - 40, '#ffd23e', 5);
+      // combo chain — keep grabbing coins for bonus bursts
+      G.combo++; G.comboT = 1.6;
+      if (G.combo % 10 === 0) {
+        const bonus = G.combo * 5;
+        G.score += bonus;
+        addFloat(`🔥 COMBO x${G.combo}! +${bonus}`, W / 2, H * 0.3, '#ff6ec4');
+        AudioSys.sfx('powerup');
+      }
       refreshBalances();
     }
   }
@@ -737,6 +766,16 @@ function update(dt) {
       crash();
       break;
     }
+  }
+
+  // running dust at the feet
+  if (G.jumpT < 0 && Math.random() < 0.35) {
+    const pr = project(G.laneF, 0);
+    G.parts.push({
+      x: pr.x + rand(-14, 14), y: pr.y - rand(0, 6),
+      vx: rand(-30, 30), vy: rand(-60, -10),
+      life: rand(0.25, 0.5), color: 'rgba(230,225,210,.8)', size: rand(2, 5),
+    });
   }
 
   // particles & floats
@@ -839,7 +878,18 @@ function gameOver() {
 
   const score = Math.floor(G.score);
   const isBest = score > S.best;
-  if (isBest) S.best = score;
+  if (isBest) {
+    S.best = score;
+    // confetti rain behind the dialog
+    for (let i = 0; i < 90; i++) {
+      G.parts.push({
+        x: rand(0, W), y: rand(-H * 0.3, 0),
+        vx: rand(-50, 50), vy: rand(60, 200), gentle: true,
+        life: rand(1.5, 3.5), color: pick(['#ffd23e', '#ff6ec4', '#5ad845', '#54a9ff', '#ff8c1a']),
+        size: rand(3, 8),
+      });
+    }
+  }
   S.coins += G.runCoins;
   S.stats.runs++;
   missionEvent('runs', 1);
@@ -913,6 +963,32 @@ function render() {
   ctx.fillStyle = 'rgba(255,240,180,.9)';
   ctx.beginPath(); ctx.arc(W * 0.78, HORIZON() * 0.45, 34, 0, 7); ctx.fill();
 
+  // stars come out at night
+  const nightW = (i0 === 2 ? 1 - ft : 0) + (i1 === 2 ? ft : 0);
+  if (nightW > 0.05) {
+    ctx.fillStyle = '#fff';
+    for (const s of STARS) {
+      ctx.globalAlpha = nightW * s[2];
+      ctx.beginPath(); ctx.arc(s[0] * W, s[1] * HORIZON(), 1.6, 0, 7); ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  // parallax mountain ridges on the horizon
+  for (const [speedF, hgt, col] of [[0.12, 0.16, 'rgba(70,90,160,.35)'], [0.25, 0.1, 'rgba(50,70,130,.45)']]) {
+    const span = W / 3;
+    const shift = (G.dist * speedF) % span;
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.moveTo(-span, HORIZON() + 1);
+    for (let i = -1; i <= 4; i++) {
+      const peakX = i * span - shift + span / 2;
+      ctx.lineTo(peakX, HORIZON() - H * hgt * (0.7 + 0.3 * Math.sin(i * 2.7 + speedF * 50)));
+      ctx.lineTo(peakX + span / 2, HORIZON() + 1);
+    }
+    ctx.closePath(); ctx.fill();
+  }
+
   ctx.save();
   if (G.shake > 0) ctx.translate(rand(-G.shake, G.shake), rand(-G.shake, G.shake));
 
@@ -920,27 +996,38 @@ function render() {
   ctx.fillStyle = lerpColor('#58c24d', '#2e7d4f', ft * 0.5);
   ctx.fillRect(0, HORIZON(), W, H - HORIZON());
 
-  // road
+  // gravel track bed
   const edgeL0 = project(-1.55, 0), edgeR0 = project(1.55, 0);
   const edgeLZ = project(-1.55, ZMAX), edgeRZ = project(1.55, ZMAX);
-  ctx.fillStyle = '#7a6a8f';
+  ctx.fillStyle = '#9a8f86';
   ctx.beginPath();
   ctx.moveTo(edgeL0.x, edgeL0.y); ctx.lineTo(edgeR0.x, edgeR0.y);
   ctx.lineTo(edgeRZ.x, edgeRZ.y); ctx.lineTo(edgeLZ.x, edgeLZ.y);
   ctx.closePath(); ctx.fill();
 
-  // lane divider dashes (scroll with the world)
-  ctx.fillStyle = 'rgba(255,255,255,.5)';
-  const segLen = 90;
+  // railway tracks: sleepers + rails per lane
+  const quad = (a, b, c, d) => {
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.lineTo(c.x, c.y); ctx.lineTo(d.x, d.y);
+    ctx.closePath(); ctx.fill();
+  };
+  const segLen = 70;
   const off = (G.dist * 10) % segLen;
-  for (const lf of [-0.5, 0.5]) {
+  for (const lane of [-1, 0, 1]) {
+    ctx.fillStyle = '#6e4f33';
     for (let z = -off; z < ZMAX; z += segLen) {
-      if (z + 38 < 0) continue;
-      const a = project(lf, Math.max(0, z)), b = project(lf, z + 38);
-      ctx.beginPath();
-      ctx.moveTo(a.x - 3 * a.p, a.y); ctx.lineTo(a.x + 3 * a.p, a.y);
-      ctx.lineTo(b.x + 3 * b.p, b.y); ctx.lineTo(b.x - 3 * b.p, b.y);
-      ctx.closePath(); ctx.fill();
+      if (z + 14 < 0) continue;
+      quad(
+        project(lane - 0.34, Math.max(0, z)), project(lane + 0.34, Math.max(0, z)),
+        project(lane + 0.34, z + 13), project(lane - 0.34, z + 13)
+      );
+    }
+    ctx.fillStyle = '#d7dde6';
+    for (const ro of [-0.21, 0.21]) {
+      quad(
+        project(lane + ro - 0.02, 0), project(lane + ro + 0.02, 0),
+        project(lane + ro + 0.02, ZMAX), project(lane + ro - 0.02, ZMAX)
+      );
     }
   }
 
@@ -1064,6 +1151,9 @@ function drawCoin(c) {
   const r = LANE_W() * 0.16 * pr.p;
   const sq = Math.abs(Math.cos(c.spin));
   const y = pr.y - r * 1.6 - Math.sin(c.spin * 1.3) * r * 0.25;
+  // soft glow
+  ctx.fillStyle = 'rgba(255,220,80,.22)';
+  ctx.beginPath(); ctx.arc(pr.x, y, r * 1.9, 0, 7); ctx.fill();
   ctx.fillStyle = '#c98a00';
   ctx.beginPath(); ctx.ellipse(pr.x, y, r * Math.max(0.18, sq), r, 0, 0, 7); ctx.fill();
   ctx.fillStyle = '#ffd23e';
@@ -1173,6 +1263,15 @@ function frame(now) {
     for (const p of G.parts) { p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 600 * dt; p.life -= dt; }
     G.parts = G.parts.filter(p => p.life > 0);
     if (G.dieT <= 0) showContinue();
+  }
+  if (G.state === 'over' || G.state === 'continue') {
+    // keep confetti / sparks falling behind the dialog
+    for (const p of G.parts) {
+      p.x += p.vx * dt; p.y += p.vy * dt;
+      p.vy += (p.gentle ? 120 : 600) * dt;
+      p.life -= dt;
+    }
+    G.parts = G.parts.filter(p => p.life > 0);
   }
   if (!$('scr-game').classList.contains('hidden')) render();
   requestAnimationFrame(frame);
@@ -1441,6 +1540,11 @@ document.addEventListener('visibilitychange', () => {
 window.addEventListener('pointerdown', () => { AudioSys.ensure(); AudioSys.startMusic(); }, { once: true });
 
 /* ============================== boot ============================== */
+/* installable app: offline cache (only when served over http/https) */
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
 ensureMissions();
 showScreen('menu');
 checkDaily();
