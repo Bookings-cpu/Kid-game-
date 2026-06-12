@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="description" content="Sky Dash! - a super fun endless runner game for kids">
+<title>Sky Dash! 🌟</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ================= MAIN MENU ================= -->
+<div id="scr-menu" class="screen">
+  <div class="menu-sky">
+    <div class="cloud c1"></div><div class="cloud c2"></div><div class="cloud c3"></div>
+    <div class="star s1">✦</div><div class="star s2">✦</div><div class="star s3">✦</div>
+  </div>
+  <div class="menu-top">
+    <div class="pill coin-pill">🪙 <span id="menu-coins">0</span></div>
+    <div class="pill">🏆 <span id="menu-best">0</span></div>
+  </div>
+  <h1 class="game-title">SKY<br>DASH!</h1>
+  <canvas id="menu-char" width="180" height="180"></canvas>
+  <button id="btn-play" class="btn btn-big btn-play">▶ PLAY!</button>
+  <div class="menu-row">
+    <button id="btn-shop" class="btn btn-round" title="Shop">🛒<small>Shop</small></button>
+    <button id="btn-chars" class="btn btn-round" title="Heroes">🦸<small>Heroes</small></button>
+    <button id="btn-missions" class="btn btn-round" title="Missions">🎯<small>Missions</small><span id="missions-badge" class="badge hidden">!</span></button>
+    <button id="btn-settings" class="btn btn-round" title="Settings">⚙️<small>More</small></button>
+  </div>
+  <button id="btn-howto" class="btn btn-link">❓ How to play</button>
+</div>
+
+<!-- ================= GAME ================= -->
+<div id="scr-game" class="screen hidden">
+  <canvas id="game-canvas"></canvas>
+  <div id="hud">
+    <button id="btn-pause" class="btn btn-hud">⏸</button>
+    <div class="hud-center">
+      <div id="hud-score">0</div>
+      <div id="hud-mult" class="hidden">x2</div>
+    </div>
+    <div class="pill coin-pill hud-coins">🪙 <span id="hud-coins">0</span></div>
+    <div id="hud-powerups"></div>
+  </div>
+</div>
+
+<!-- ================= SHOP ================= -->
+<div id="scr-shop" class="screen panel-screen hidden">
+  <div class="panel-head">
+    <button class="btn btn-back" data-to="menu">⬅</button>
+    <h2>🛒 Shop</h2>
+    <div class="pill coin-pill">🪙 <span id="shop-coins">0</span></div>
+  </div>
+  <div class="panel-body">
+    <h3 class="section-title">⚡ Power-Up Upgrades</h3>
+    <div id="upgrade-list"></div>
+    <h3 class="section-title">🎬 Free Coins</h3>
+    <div class="card ad-card">
+      <div class="card-info"><b>Watch a short ad</b><span>Get coins for free, any time!</span></div>
+      <button id="btn-shop-ad" class="btn btn-green">▶ +100 🪙</button>
+    </div>
+    <h3 class="section-title">💎 Coin Packs <small class="grownup-note">(grown-ups only)</small></h3>
+    <div class="card pack-card" data-pack="0">
+      <div class="card-emoji">💰</div>
+      <div class="card-info"><b>Pile of Coins</b><span>1,000 coins</span></div>
+      <button class="btn btn-blue btn-pack" data-pack="0">£0.99</button>
+    </div>
+    <div class="card pack-card" data-pack="1">
+      <div class="card-emoji">🎒</div>
+      <div class="card-info"><b>Bag of Coins</b><span>6,000 coins · BEST VALUE</span></div>
+      <button class="btn btn-blue btn-pack" data-pack="1">£3.99</button>
+    </div>
+    <div class="card pack-card" data-pack="2">
+      <div class="card-emoji">🏆</div>
+      <div class="card-info"><b>Treasure Chest</b><span>20,000 coins</span></div>
+      <button class="btn btn-blue btn-pack" data-pack="2">£9.99</button>
+    </div>
+    <p class="tiny-note">Coin packs are a demo of an in-app purchase flow — no real money is charged.</p>
+  </div>
+</div>
+
+<!-- ================= HEROES ================= -->
+<div id="scr-chars" class="screen panel-screen hidden">
+  <div class="panel-head">
+    <button class="btn btn-back" data-to="menu">⬅</button>
+    <h2>🦸 Heroes</h2>
+    <div class="pill coin-pill">🪙 <span id="chars-coins">0</span></div>
+  </div>
+  <div class="panel-body"><div id="char-grid"></div></div>
+</div>
+
+<!-- ================= MISSIONS ================= -->
+<div id="scr-missions" class="screen panel-screen hidden">
+  <div class="panel-head">
+    <button class="btn btn-back" data-to="menu">⬅</button>
+    <h2>🎯 Missions</h2>
+    <div class="pill coin-pill">🪙 <span id="missions-coins">0</span></div>
+  </div>
+  <div class="panel-body">
+    <p class="section-sub">Finish missions to win bonus coins!</p>
+    <div id="mission-list"></div>
+  </div>
+</div>
+
+<!-- ================= SETTINGS ================= -->
+<div id="scr-settings" class="screen panel-screen hidden">
+  <div class="panel-head">
+    <button class="btn btn-back" data-to="menu">⬅</button>
+    <h2>⚙️ Settings</h2><div></div>
+  </div>
+  <div class="panel-body">
+    <div class="card"><div class="card-info"><b>🔔 Sound effects</b></div><button id="tgl-sound" class="btn btn-blue">On</button></div>
+    <div class="card"><div class="card-info"><b>🎵 Music</b></div><button id="tgl-music" class="btn btn-blue">On</button></div>
+    <h3 class="section-title">📊 Your Stats</h3>
+    <div id="stats-box" class="card stats-card"></div>
+    <h3 class="section-title">⚠️ Danger Zone</h3>
+    <div class="card"><div class="card-info"><b>Reset everything</b><span>Deletes all progress</span></div><button id="btn-reset" class="btn btn-red">Reset</button></div>
+  </div>
+</div>
+
+<!-- ================= PAUSE ================= -->
+<div id="ovl-pause" class="overlay hidden">
+  <div class="dialog">
+    <h2>⏸ Paused</h2>
+    <button id="btn-resume" class="btn btn-big btn-green">▶ Keep going!</button>
+    <button id="btn-restart" class="btn btn-blue">🔄 Restart</button>
+    <button id="btn-quit" class="btn btn-grey">🏠 Home</button>
+  </div>
+</div>
+
+<!-- ================= CONTINUE (revive) ================= -->
+<div id="ovl-continue" class="overlay hidden">
+  <div class="dialog">
+    <h2>😮 Keep Running?</h2>
+    <div id="continue-ring"><span id="continue-count">9</span></div>
+    <button id="btn-revive-coins" class="btn btn-big btn-yellow">🪙 Continue — <span id="revive-cost">100</span> coins</button>
+    <button id="btn-revive-ad" class="btn btn-big btn-green">🎬 Watch ad — FREE continue</button>
+    <button id="btn-no-thanks" class="btn btn-link">No thanks</button>
+  </div>
+</div>
+
+<!-- ================= GAME OVER ================= -->
+<div id="ovl-over" class="overlay hidden">
+  <div class="dialog">
+    <div id="over-newbest" class="newbest hidden">🎉 NEW BEST! 🎉</div>
+    <h2>Run Finished!</h2>
+    <div class="over-stats">
+      <div class="over-row"><span>⭐ Score</span><b id="over-score">0</b></div>
+      <div class="over-row"><span>🏆 Best</span><b id="over-best">0</b></div>
+      <div class="over-row"><span>🪙 Coins won</span><b id="over-coins">0</b></div>
+    </div>
+    <div id="over-missions"></div>
+    <button id="btn-double" class="btn btn-big btn-green">🎬 Watch ad — DOUBLE your coins!</button>
+    <button id="btn-again" class="btn btn-big btn-play">▶ Run again!</button>
+    <button id="btn-home" class="btn btn-grey">🏠 Home</button>
+  </div>
+</div>
+
+<!-- ================= AD MODAL (simulated rewarded ad) ================= -->
+<div id="mod-ad" class="overlay hidden">
+  <div class="dialog ad-dialog">
+    <div class="ad-label">Ad</div>
+    <div id="ad-stage">
+      <div class="ad-bubble b1"></div><div class="ad-bubble b2"></div><div class="ad-bubble b3"></div>
+      <div class="ad-bubble b4"></div><div class="ad-bubble b5"></div>
+      <div id="ad-text">Super Bubble Pop!<br><small>The poppiest game ever!</small></div>
+    </div>
+    <div id="ad-timer">5</div>
+    <button id="btn-ad-claim" class="btn btn-big btn-green hidden">🎁 Claim reward!</button>
+    <button id="btn-ad-close" class="btn btn-link">✖ Skip (no reward)</button>
+  </div>
+</div>
+
+<!-- ================= PARENTAL GATE ================= -->
+<div id="mod-gate" class="overlay hidden">
+  <div class="dialog">
+    <h2>🧑‍🦳 Ask a grown-up!</h2>
+    <p class="gate-sub">To buy coins, a grown-up must answer:</p>
+    <div id="gate-q" class="gate-q">7 × 6 = ?</div>
+    <input id="gate-in" type="number" inputmode="numeric" placeholder="Answer">
+    <button id="btn-gate-ok" class="btn btn-big btn-blue">Unlock</button>
+    <button id="btn-gate-cancel" class="btn btn-link">Cancel</button>
+  </div>
+</div>
+
+<!-- ================= DAILY REWARD ================= -->
+<div id="mod-daily" class="overlay hidden">
+  <div class="dialog">
+    <h2>📅 Daily Gift!</h2>
+    <p class="gate-sub">Come back every day for bigger gifts!</p>
+    <div id="daily-grid"></div>
+    <button id="btn-daily-claim" class="btn btn-big btn-yellow">🎁 Claim!</button>
+  </div>
+</div>
+
+<!-- ================= HOW TO PLAY ================= -->
+<div id="mod-howto" class="overlay hidden">
+  <div class="dialog">
+    <h2>❓ How to Play</h2>
+    <div class="howto-list">
+      <div class="howto-row"><span class="howto-key">⬅ ➡</span> Swipe or arrow keys to change lane</div>
+      <div class="howto-row"><span class="howto-key">⬆</span> Swipe up / up arrow / space to JUMP</div>
+      <div class="howto-row"><span class="howto-key">⬇</span> Swipe down / down arrow to ROLL</div>
+      <div class="howto-row"><span class="howto-key">🪙</span> Grab coins &amp; power-ups</div>
+      <div class="howto-row"><span class="howto-key">🚧</span> Jump hurdles, roll under bars, dodge trains!</div>
+    </div>
+    <button id="btn-howto-ok" class="btn btn-big btn-green">Got it!</button>
+  </div>
+</div>
+
+<!-- ================= CONFIRM RESET ================= -->
+<div id="mod-confirm" class="overlay hidden">
+  <div class="dialog">
+    <h2>⚠️ Are you sure?</h2>
+    <p class="gate-sub">All coins, heroes and records will be deleted forever!</p>
+    <button id="btn-confirm-yes" class="btn btn-big btn-red">Yes, reset</button>
+    <button id="btn-confirm-no" class="btn btn-big btn-grey">No, keep my stuff!</button>
+  </div>
+</div>
+
+<div id="toasts"></div>
+
+<script src="game.js"></script>
+</body>
+</html>
