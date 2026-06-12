@@ -745,9 +745,9 @@ window.R3D = (() => {
   }
 
   function makeCoin() {
-    const geo = new THREE.CylinderGeometry(0.3, 0.3, 0.07, 18);
+    const geo = new THREE.CylinderGeometry(0.34, 0.34, 0.08, 18);
     geo.rotateX(Math.PI / 2);
-    const m = new THREE.Mesh(geo, mat('#ffd23e', { metalness: 0.55, roughness: 0.3, emissive: '#8a6200', emissiveIntensity: 0.35 }));
+    const m = new THREE.Mesh(geo, mat('#ffd23e', { metalness: 0.5, roughness: 0.25, emissive: '#aa7a00', emissiveIntensity: 0.55 }));
     m.castShadow = true;
     return m;
   }
@@ -984,8 +984,8 @@ window.R3D = (() => {
     scene.fog = new THREE.Fog(SKY.getHex(), 21, 44);
     camera = new THREE.PerspectiveCamera(58, 1, 0.1, 90);
 
-    scene.add(new THREE.HemisphereLight(0xffffff, 0x668855, 0.55));
-    const sun = new THREE.DirectionalLight(0xfff3d6, 0.75);
+    scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x668855, 0.5));
+    const sun = new THREE.DirectionalLight(0xffe9c0, 0.92);
     sun.position.set(6, 12, 5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -999,7 +999,7 @@ window.R3D = (() => {
     ground.receiveShadow = true;
     scene.add(ground);
 
-    trackBed = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.6, 0.12, 70), mat('#9a9088'));
+    trackBed = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.6, 0.12, 70), mat('#bcae9c'));
     trackBed.position.set(0, 0.01, -28);
     trackBed.receiveShadow = true;
     scene.add(trackBed);
@@ -1008,7 +1008,7 @@ window.R3D = (() => {
     for (const lane of [-1, 0, 1]) {
       for (const off of [-0.42, 0.42]) {
         const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 70),
-          mat('#cfd6e0', { metalness: 0.7, roughness: 0.35 }));
+          mat('#e8eef6', { metalness: 0.8, roughness: 0.3 }));
         rail.position.set(lane * LANE + off, 0.12, -28);
         scene.add(rail);
         railMats.push(rail);
@@ -1016,7 +1016,7 @@ window.R3D = (() => {
     }
     // sleepers (recycled, scrolled by distance)
     for (let i = 0; i < 46; i++) {
-      const sl = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.2, 0.07, 0.28), mat('#6e4f33'));
+      const sl = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.2, 0.07, 0.28), mat('#9b7a52'));
       sl.position.y = 0.09;
       sl.receiveShadow = true;
       scene.add(sl);
@@ -1104,25 +1104,36 @@ window.R3D = (() => {
         x.closePath(); x.fill();
       }
     }, 512);
-    const mountains = new THREE.Mesh(new THREE.PlaneGeometry(220, 26),
-      new THREE.MeshBasicMaterial({ map: mountainTex, transparent: true, fog: false, depthWrite: false, opacity: 0.85 }));
-    mountains.position.set(0, 8, -58);
+    const mountains = new THREE.Mesh(new THREE.PlaneGeometry(220, 13),
+      new THREE.MeshBasicMaterial({ map: mountainTex, transparent: true, fog: false, depthWrite: false, opacity: 0.55 }));
+    mountains.position.set(0, 5.2, -59);
     scene.add(mountains);
 
-    /* ----- continuous trackside scenery rows ----- */
-    const AMBIENT_KINDS = ['tree', 'tree', 'pine', 'house', 'tree', 'rock', 'tree', 'house'];
+    /* ----- continuous trackside scenery rows, swapping with the world theme ----- */
+    const AMBIENT_THEMES = [
+      ['tree', 'house', 'tree', 'tree', 'rock'],
+      ['cactus', 'rock', 'cactus', 'cactus', 'rock'],
+      ['pine', 'snowman', 'pine', 'pine', 'rock'],
+      ['lolly', 'cane', 'lolly', 'cane', 'lolly'],
+    ];
     for (const side of [-1, 1]) {
-      for (let i = 0; i < 16; i++) { // near row
-        const kind = AMBIENT_KINDS[Math.floor(hash01(i * 17 + side * 3) * AMBIENT_KINDS.length)];
-        const m = makeDecor(kind);
-        const sc = 0.9 + hash01(i * 23 + side) * 0.7;
-        m.scale.setScalar(sc);
-        m.userData.amb = { side, i, spacing: 4.2, x: side * (5.8 + hash01(i * 31 + side) * 3.5) };
-        scene.add(m);
-        ambient.push(m);
+      for (let i = 0; i < 16; i++) { // near row: one variant per theme, toggled live
+        const slot = new THREE.Group();
+        for (let t = 0; t < 4; t++) {
+          const kinds = AMBIENT_THEMES[t];
+          const kind = kinds[Math.floor(hash01(i * 17 + side * 3 + t * 101) * kinds.length)];
+          const v = makeDecor(kind);
+          v.visible = t === 0;
+          slot.add(v);
+        }
+        slot.scale.setScalar(0.9 + hash01(i * 23 + side) * 0.7);
+        slot.userData.amb = { side, i, spacing: 4.2, x: side * (4.9 + hash01(i * 31 + side) * 2.6) };
+        slot.userData.themed = true;
+        scene.add(slot);
+        ambient.push(slot);
       }
-      for (let i = 0; i < 12; i++) { // far row, bigger
-        const kind = AMBIENT_KINDS[Math.floor(hash01(i * 41 + side * 7) * AMBIENT_KINDS.length)];
+      for (let i = 0; i < 12; i++) { // far row: big background greens
+        const kind = ['tree', 'tree', 'pine', 'house'][Math.floor(hash01(i * 41 + side * 7) * 4)];
         const m = makeDecor(kind);
         m.scale.setScalar(1.6 + hash01(i * 43 + side) * 1.1);
         m.userData.amb = { side, i, spacing: 5.6, x: side * (11 + hash01(i * 47 + side) * 5) };
@@ -1236,18 +1247,24 @@ window.R3D = (() => {
 
     // camera chase + roll + shake + crash zoom
     const sway = G.laneF * LANE * 0.5;
-    let cz = 6.6, cy = 4.1;
+    let cz = 6.4, cy = 3.25;
     if (G.state === 'dying') {
       const t = 1 - Math.max(0, G.dieT) / 0.9;
-      cz = 6.6 - t * 2.6; cy = 4.1 - t * 1.4;
+      cz = 6.4 - t * 2.4; cy = 3.25 - t * 1.0;
     }
     camera.position.set(
       sway + (G.shake > 0 ? (Math.random() - 0.5) * G.shake * 0.045 : 0),
       cy + (G.shake > 0 ? (Math.random() - 0.5) * G.shake * 0.035 : 0),
       cz
     );
-    camera.lookAt(sway * 0.85, 0.75, -9);
+    camera.lookAt(sway * 0.85, 1.7, -10);
     camera.rotation.z += G.roll * 1.4;
+    // FOV widens with speed (and fever) — the rush you can feel
+    const targetFov = 57 + Math.max(0, Math.min(1, (G.speed - 300) / 460)) * 9 + (G.fever > 0 ? 3 : 0);
+    if (Math.abs(camera.fov - targetFov) > 0.1) {
+      camera.fov += (targetFov - camera.fov) * 0.08;
+      camera.updateProjectionMatrix();
+    }
 
     // scroll sleepers + fence posts with distance
     const zoff = (G.dist * 10 * K) % 1.42;
@@ -1257,10 +1274,14 @@ window.R3D = (() => {
 
     // scroll the ambient world: scenery rows, poles, gantries
     const dz = G.dist * 10 * K;
+    const themeNow = G.themeIdx % 4;
     const scroll = (m) => {
       const a = m.userData.amb;
       m.position.x = a.x;
       m.position.z = -(a.i * a.spacing) + (dz % a.spacing) + 2;
+      if (m.userData.themed) {
+        for (let t = 0; t < 4; t++) m.children[t].visible = t === themeNow;
+      }
     };
     for (const m of ambient) scroll(m);
     for (const m of poles) scroll(m);
