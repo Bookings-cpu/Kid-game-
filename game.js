@@ -63,6 +63,28 @@ const HOVERBOARD_PRICE = 300;
 const BOX_PRICE = 400;
 const DOUBLER_PRICE = 25000;
 
+// rivals ladder — beat them all to become THE LEGEND
+const RIVALS = [
+  { score: 500,    name: 'Milo the Mouse', icon: '🐭' },
+  { score: 1200,   name: 'Bella Bunny',    icon: '🐰' },
+  { score: 2500,   name: 'Turbo Tom',      icon: '🐱' },
+  { score: 5000,   name: 'Daring Daisy',   icon: '🐶' },
+  { score: 9000,   name: 'Rocket Rex',     icon: '🦖' },
+  { score: 15000,  name: 'Comet Carla',    icon: '🦄' },
+  { score: 25000,  name: 'Flash Finn',     icon: '🦊' },
+  { score: 40000,  name: 'Mega Maya',      icon: '🐯' },
+  { score: 65000,  name: 'Captain Zoom',   icon: '🦅' },
+  { score: 100000, name: 'THE LEGEND',     icon: '👑' },
+];
+
+// first-run guided start
+const TUTOR = [
+  { d: 40,  t: '⬅ SWIPE ➡ to change track!' },
+  { d: 160, t: '⬆ SWIPE UP to JUMP!' },
+  { d: 280, t: '⬇ SWIPE DOWN to ROLL!' },
+  { d: 400, t: '🪙 Grab every coin!' },
+];
+
 // rotating worlds — a new land every 2,500m, synced with the sky cycle
 const THEMES = [
   { name: '🌼 Sunny Meadows', ground: ['#7fd071', '#4fae44'], groundLo: ['#4f9e63', '#2e7d4f'] },
@@ -100,6 +122,7 @@ function defaultSave() {
     hoverboards: 1,
     doubler: false,
     xp: 0,
+    rivalsBeaten: 0,
     wordHunt: { date: '', got: [false, false, false, false, false, false], streak: 0 },
     seenHowto: false,
     stats: { runs: 0, totalCoins: 0, totalDist: 0, jumps: 0, slides: 0, powerups: 0 },
@@ -121,7 +144,7 @@ let S = (() => {
   // sanitize: a tampered or corrupted save must never break the game
   const fresh = defaultSave();
   const num = (v, def) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : def);
-  for (const k of ['coins', 'best', 'boxes', 'hoverboards', 'xp', 'missionLvl']) d[k] = num(d[k], fresh[k]);
+  for (const k of ['coins', 'best', 'boxes', 'hoverboards', 'xp', 'missionLvl', 'rivalsBeaten']) d[k] = num(d[k], fresh[k]);
   for (const k of ['sound', 'music']) d[k] = typeof d[k] === 'boolean' ? d[k] : true;
   d.doubler = d.doubler === true;
   d.seenHowto = d.seenHowto === true;
@@ -359,7 +382,9 @@ const AudioSys = {
       case 'smash':   this.tone(220, 0.2, 'sawtooth', 0.13, 0, 60); break;
       case 'fever':   [523, 659, 784, 1047, 1319, 1568].forEach((f, i) => this.tone(f, 0.14, 'square', 0.1, i * 0.06)); break;
       case 'mile':    this.tone(784, 0.12, 'triangle', 0.1); this.tone(1175, 0.2, 'triangle', 0.1, 0.1); break;
+      case 'alarm':   for (let i = 0; i < 3; i++) { this.tone(880, 0.16, 'square', 0.12, i * 0.36); this.tone(622, 0.16, 'square', 0.12, i * 0.36 + 0.18); } break;
     }
+    if (name === 'crash') this.noise(0.35, 0.2);
   },
 
   // coins climb in pitch as your combo grows — pure dopamine
@@ -508,12 +533,18 @@ function checkDaily() {
 }
 
 /* ============================== character drawing ============================== */
+const _shadeCache = new Map();
 function shade(hex, amt) {
+  const key = hex + '|' + amt;
+  const hit = _shadeCache.get(key);
+  if (hit) return hit;
   const n = parseInt(hex.slice(1), 16);
   let r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
   if (amt >= 0) { r += (255 - r) * amt; g += (255 - g) * amt; b += (255 - b) * amt; }
   else { r *= 1 + amt; g *= 1 + amt; b *= 1 + amt; }
-  return `rgb(${r | 0},${g | 0},${b | 0})`;
+  const out = `rgb(${r | 0},${g | 0},${b | 0})`;
+  _shadeCache.set(key, out);
+  return out;
 }
 
 function drawCharacter(ctx, x, y, size, def, opts) {
@@ -771,6 +802,7 @@ const G = {
   fever: 0, flashT: 0, nextMile: 500, queueJump: false,
   jumpDur: 0.62, jumpPow: 1, trail: [],
   guardD: 0, guardLane: 0, heartT: 0, caught: false, stumbled: false,
+  rushAt: 900, rushWarn: 0, rushLeft: 0, rushTick: 0, rushDone: 0, rushLanes: [], tutorIdx: 0,
   revives: 0, invinc: 0, shake: 0, dieT: 0, phase: 0,
   runMissions: [], doubled: false, lastSafe: 1,
   combo: 0, comboT: 0,
@@ -790,6 +822,7 @@ function startRun() {
     fever: 0, flashT: 0, nextMile: 500, queueJump: false,
     jumpDur: 0.62, jumpPow: 1, trail: [],
     guardD: 0.95, guardLane: 0, heartT: 0, caught: false, stumbled: false,
+    rushAt: rand(800, 1100), rushWarn: 0, rushLeft: 0, rushTick: 0, rushDone: 0, rushLanes: [], tutorIdx: 0,
     revives: 0, invinc: 1.5, shake: 0, dieT: 0, phase: 0,
     runMissions: [], doubled: false, lastSafe: 1,
     combo: 0, comboT: 0,
@@ -1045,6 +1078,52 @@ function update(dt) {
     addFloat(`🏁 ${fmt(G.nextMile)}m!`, W / 2, H * 0.26, '#7fe0ff', 36);
     AudioSys.sfx('mile');
     G.nextMile += 500;
+  }
+
+  // guided start for brand-new players
+  if (S.stats.runs < 2 && G.tutorIdx < TUTOR.length && G.dist >= TUTOR[G.tutorIdx].d) {
+    addFloat(TUTOR[G.tutorIdx].t, W / 2, H * 0.3, '#fff', 28);
+    G.tutorIdx++;
+  }
+
+  // ===== TRAIN RUSH — a scripted wave of charging trains =====
+  if (G.rushWarn <= 0 && G.rushLeft <= 0 && !G.rushDone && G.dist >= G.rushAt) {
+    const lanes = [-1, 0, 1];
+    lanes.splice(irand(0, 2), 1); // one lane stays safe
+    G.rushLanes = lanes;
+    G.rushWarn = 2.4;
+    addFloat('🚨 TRAIN RUSH!! 🚨', W / 2, H * 0.28, '#ff5e5e', 40);
+    AudioSys.sfx('alarm');
+    if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
+  }
+  if (G.rushWarn > 0) {
+    G.rushWarn -= dt;
+    G.spawnAt = Math.max(G.spawnAt, 200); // hold normal spawns
+    if (G.rushWarn <= 0) { G.rushLeft = 6; G.rushTick = 0; }
+  }
+  if (G.rushLeft > 0) {
+    G.spawnAt = Math.max(G.spawnAt, 200);
+    G.rushTick -= dt;
+    if (G.rushTick <= 0) {
+      G.rushTick = 0.55;
+      const lane = G.rushLanes[G.rushLeft % G.rushLanes.length];
+      G.obstacles.push({
+        kind: 'train', lane, z: SPAWN_Z + rand(0, 40),
+        len: rand(150, 220), hue: irand(0, 4), vz: rand(110, 170),
+      });
+      // breadcrumb coins down the safe lane
+      const safe = [-1, 0, 1].find(l => !G.rushLanes.includes(l));
+      G.coins.push({ laneF: safe, z: SPAWN_Z + 60, spin: rand(0, 6), h: 0 });
+      G.rushLeft--;
+      if (G.rushLeft <= 0) G.rushDone = G.dist + 320;
+    }
+  }
+  if (G.rushDone && G.dist >= G.rushDone) {
+    G.rushDone = 0;
+    G.rushAt = G.dist + rand(1200, 1900);
+    G.score += 500;
+    addFloat('🎉 SURVIVED THE RUSH! +500', W / 2, H * 0.3, '#5ad845', 34);
+    AudioSys.sfx('mission');
   }
 
   // spawning by distance travelled
@@ -1416,6 +1495,27 @@ function gameOver() {
   const stars = (isBest || score >= 5000) ? 3 : score >= 1500 ? 2 : 1;
   $('over-stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
   $('over-best').textContent = fmt(S.best);
+
+  // rivals ladder — did we take anyone down this run?
+  while (S.rivalsBeaten < RIVALS.length && score > RIVALS[S.rivalsBeaten].score) {
+    const r = RIVALS[S.rivalsBeaten];
+    S.rivalsBeaten++;
+    const reward = 150 + S.rivalsBeaten * 50;
+    S.coins += reward;
+    toast(`🏆 You beat ${r.name}! +${reward} 🪙`, true);
+    AudioSys.sfx('mission');
+  }
+  const rivalEl = $('over-rival');
+  if (S.rivalsBeaten < RIVALS.length) {
+    const r = RIVALS[S.rivalsBeaten];
+    const pct = clamp((S.best / r.score) * 100, 0, 100);
+    rivalEl.innerHTML = `
+      <div class="rival-top"><span>${r.icon} Next rival: <b>${r.name}</b></span><b>${fmt(r.score)}</b></div>
+      <div class="mission-bar"><i style="width:${pct.toFixed(1)}%"></i></div>
+      <div class="mission-prog">Your best: ${fmt(S.best)} — beat them for a bonus!</div>`;
+  } else {
+    rivalEl.innerHTML = '<div class="rival-top">👑 You beat EVERY rival. You are THE LEGEND!</div>';
+  }
   $('over-coins').textContent = fmt(G.runCoins);
   $('over-newbest').classList.toggle('hidden', !isBest);
   $('btn-double').classList.toggle('hidden', G.runCoins <= 0 || G.doubled);
@@ -1631,6 +1731,26 @@ function render() {
         project(lane + ro - 0.02, 0), project(lane + ro + 0.02, 0),
         project(lane + ro + 0.02, ZMAX), project(lane + ro - 0.02, ZMAX)
       );
+    }
+  }
+
+  // train-rush warning chevrons flashing over the doomed lanes
+  if ((G.rushWarn > 0 || G.rushLeft > 0) && Math.floor(G.phase * 5) % 2 === 0) {
+    for (const lane of G.rushLanes) {
+      const wp = project(lane, 850);
+      const s = LANE_W() * 0.5 * wp.p;
+      ctx.fillStyle = 'rgba(255,60,50,.9)';
+      ctx.beginPath();
+      ctx.moveTo(wp.x - s, wp.y - s * 2.4);
+      ctx.lineTo(wp.x + s, wp.y - s * 2.4);
+      ctx.lineTo(wp.x, wp.y - s * 0.8);
+      ctx.closePath(); ctx.fill();
+      ctx.fillStyle = 'rgba(255,60,50,.35)';
+      ctx.beginPath();
+      ctx.moveTo(wp.x - s * 1.3, wp.y - s * 3.6);
+      ctx.lineTo(wp.x + s * 1.3, wp.y - s * 3.6);
+      ctx.lineTo(wp.x, wp.y - s * 1.6);
+      ctx.closePath(); ctx.fill();
     }
   }
 

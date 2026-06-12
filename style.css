@@ -190,6 +190,8 @@ button { font-family:inherit; }
 .over-row { display:flex; justify-content:space-between; font-size:19px; padding:4px 0; }
 .newbest { font-size:21px; color:#ffd23e; font-weight:900; animation:pulse .8s infinite; }
 #over-missions { width:100%; }
+.rival-card { width:100%; background:rgba(255,210,62,.12); border:2px dashed rgba(255,210,62,.4); border-radius:14px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+.rival-top { display:flex; justify-content:space-between; gap:8px; font-size:15px; }
 .over-mission { background:rgba(90,216,69,.18); border-radius:12px; padding:8px 12px; margin-bottom:6px; font-size:15px; }
 
 /* ad modal */
