@@ -2135,16 +2135,22 @@ function render() {
   ctx.fillStyle = 'rgba(255,246,200,.95)';
   ctx.beginPath(); ctx.arc(W * 0.78, HORIZON() * 0.45, 34, 0, 7); ctx.fill();
 
-  // drifting clouds
-  ctx.fillStyle = 'rgba(255,255,255,.85)';
+  // drifting clouds, shaded underneath so they look fluffy
   for (const cl of CLOUDS) {
     const cw = W * cl[2];
     const cx2 = (((cl[0] * W - G.dist * cl[3]) % (W + cw * 2)) + W + cw * 2) % (W + cw * 2) - cw;
     const cy = HORIZON() * cl[1];
+    ctx.fillStyle = 'rgba(175,195,225,.55)';
+    ctx.beginPath();
+    ctx.ellipse(cx2, cy + cw * 0.05, cw * 0.5, cw * 0.16, 0, 0, 7);
+    ctx.ellipse(cx2 - cw * 0.25, cy + cw * 0.09, cw * 0.3, cw * 0.12, 0, 0, 7);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,255,255,.92)';
     ctx.beginPath();
     ctx.ellipse(cx2, cy, cw * 0.5, cw * 0.18, 0, 0, 7);
     ctx.ellipse(cx2 - cw * 0.25, cy + cw * 0.05, cw * 0.3, cw * 0.14, 0, 0, 7);
     ctx.ellipse(cx2 + cw * 0.22, cy + cw * 0.04, cw * 0.28, cw * 0.13, 0, 0, 7);
+    ctx.ellipse(cx2 - cw * 0.05, cy - cw * 0.09, cw * 0.26, cw * 0.14, 0, 0, 7);
     ctx.fill();
   }
 
@@ -2206,6 +2212,45 @@ function render() {
     }
   }
 
+  // scattered ground details, themed per world (flowers / pebbles / sparkles / sprinkles)
+  {
+    const drow = 95;
+    const doff = (G.dist * 10) % drow;
+    const themeIdx = G.themeIdx % THEMES.length;
+    for (let z = -doff; z < ZMAX; z += drow) {
+      const absRow = Math.round((G.dist * 10 + z) / drow);
+      for (const side of [-1, 1]) {
+        const h = hash01(absRow * 2 + (side + 1) / 2);
+        if (h < 0.35) continue; // gaps keep it natural
+        const lf = side * (1.9 + h * 1.3);
+        const dp = project(lf, Math.max(0.001, z));
+        const ds = LANE_W() * 0.085 * dp.p;
+        if (ds < 1) continue;
+        ctx.globalAlpha = fogA(z);
+        if (themeIdx === 0) { // flowers
+          ctx.fillStyle = ['#ff8ab5', '#ffe14d', '#ff9a5c', '#c9a6ff'][(absRow + side) & 3];
+          ctx.beginPath(); ctx.arc(dp.x, dp.y - ds, ds, 0, 7); ctx.fill();
+          ctx.fillStyle = '#fff';
+          ctx.beginPath(); ctx.arc(dp.x, dp.y - ds, ds * 0.4, 0, 7); ctx.fill();
+        } else if (themeIdx === 1) { // pebbles
+          ctx.fillStyle = 'rgba(150,115,70,.6)';
+          ctx.beginPath(); ctx.ellipse(dp.x, dp.y - ds * 0.4, ds * 1.1, ds * 0.6, 0, 0, 7); ctx.fill();
+        } else if (themeIdx === 2) { // snow sparkles
+          ctx.fillStyle = `rgba(255,255,255,${0.5 + 0.5 * Math.sin(G.phase * 4 + absRow)})`;
+          ctx.beginPath(); ctx.arc(dp.x, dp.y - ds * 0.5, ds * 0.6, 0, 7); ctx.fill();
+        } else { // candy sprinkles
+          ctx.fillStyle = ['#ff5e5e', '#5ad845', '#54a9ff', '#ffe14d'][(absRow + side) & 3];
+          ctx.save();
+          ctx.translate(dp.x, dp.y - ds * 0.5);
+          ctx.rotate(h * 6);
+          ctx.fillRect(-ds, -ds * 0.35, ds * 2, ds * 0.7);
+          ctx.restore();
+        }
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
   // gravel track bed with edge shadow
   const edgeL0 = project(-1.55, 0), edgeR0 = project(1.55, 0);
   const edgeLZ = project(-1.55, ZMAX), edgeRZ = project(1.55, ZMAX);
@@ -2256,21 +2301,49 @@ function render() {
   const segLen = 70;
   const off = (G.dist * 10) % segLen;
   for (const lane of [-1, 0, 1]) {
-    ctx.fillStyle = '#6e4f33';
     for (let z = -off; z < ZMAX; z += segLen) {
       if (z + 14 < 0) continue;
+      // sleeper with a darker leading edge for depth
+      ctx.fillStyle = '#5d4128';
       quad(
         project(lane - 0.34, Math.max(0, z)), project(lane + 0.34, Math.max(0, z)),
+        project(lane + 0.34, z + 4), project(lane - 0.34, z + 4)
+      );
+      ctx.fillStyle = '#6e4f33';
+      quad(
+        project(lane - 0.34, Math.max(0, z + 4)), project(lane + 0.34, Math.max(0, z + 4)),
         project(lane + 0.34, z + 13), project(lane - 0.34, z + 13)
       );
     }
-    ctx.fillStyle = '#d7dde6';
     for (const ro of [-0.21, 0.21]) {
+      // rail shadow, body, then a sun-catching top highlight
+      ctx.fillStyle = 'rgba(0,0,0,.2)';
+      quad(
+        project(lane + ro - 0.032, 0), project(lane + ro + 0.032, 0),
+        project(lane + ro + 0.032, ZMAX), project(lane + ro - 0.032, ZMAX)
+      );
+      ctx.fillStyle = '#b9c2cf';
       quad(
         project(lane + ro - 0.02, 0), project(lane + ro + 0.02, 0),
         project(lane + ro + 0.02, ZMAX), project(lane + ro - 0.02, ZMAX)
       );
+      ctx.fillStyle = '#eef3f8';
+      quad(
+        project(lane + ro - 0.012, 0), project(lane + ro + 0.004, 0),
+        project(lane + ro + 0.004, ZMAX), project(lane + ro - 0.012, ZMAX)
+      );
     }
+  }
+
+  // atmospheric haze where the world meets the sky
+  {
+    const hz = HORIZON();
+    const hg = ctx.createLinearGradient(0, hz - H * 0.05, 0, hz + H * 0.1);
+    hg.addColorStop(0, 'rgba(255,255,255,0)');
+    hg.addColorStop(0.4, 'rgba(255,255,255,.32)');
+    hg.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = hg;
+    ctx.fillRect(0, hz - H * 0.05, W, H * 0.15);
   }
 
   // train-rush warning chevrons flashing over the doomed lanes
@@ -2487,8 +2560,17 @@ function drawBackdrop(ti, alpha) {
 const TRAIN_COLORS = ['#e8443a', '#3a7be8', '#9b59d0', '#1faa59', '#e8930c'];
 const GUARD_DEF = { body: '#8b93a8', belly: '#cfd6e2', hat: 'cap' };
 
+// depth fog: everything fades in from the hazy horizon instead of popping
+const fogA = (z) => clamp((SPAWN_Z + 120 - z) / 300, 0, 1);
+// cheap deterministic hash for scattering scenery details
+const hash01 = (n) => {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+};
+
 function drawObstacle(o) {
   if (o.z > ZMAX) return;
+  ctx.globalAlpha = fogA(o.z);
   const front = project(o.lane, Math.max(0.001, o.z));
   const back = project(o.lane, Math.max(0.001, o.z + o.len));
   const w = LANE_W() * 0.86 * front.p;
@@ -2671,6 +2753,7 @@ function drawObstacle(o) {
       ctx.fill();
     }
   }
+  ctx.globalAlpha = 1;
 }
 
 function rr(x, y, w, h, r) { ctx.beginPath(); rrPath(x, y, w, h, r); ctx.fill(); }
@@ -2686,6 +2769,7 @@ function rrPath(x, y, w, h, r) {
 
 function drawCoin(c) {
   if (c.z > ZMAX) return;
+  ctx.globalAlpha = fogA(c.z);
   const pr = project(c.laneF, Math.max(0.001, c.z));
   const r = LANE_W() * 0.16 * pr.p;
   const sq = Math.abs(Math.cos(c.spin));
@@ -2710,10 +2794,12 @@ function drawCoin(c) {
     ctx.moveTo(sx, sy - sl); ctx.lineTo(sx, sy + sl);
     ctx.stroke();
   }
+  ctx.globalAlpha = 1;
 }
 
 function drawPickup(p) {
   if (p.z > ZMAX) return;
+  ctx.globalAlpha = fogA(p.z);
   const pr = project(p.laneF, Math.max(0.001, p.z));
   const r = LANE_W() * 0.22 * pr.p;
   const y = pr.y - r * 1.7 - Math.sin(p.spin) * r * 0.3;
@@ -2726,10 +2812,12 @@ function drawPickup(p) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(isBox ? '🎁' : POWERUPS[p.kind].icon, pr.x, y + r * 0.05);
   ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = 1;
 }
 
 function drawLetter(l) {
   if (l.z > ZMAX) return;
+  ctx.globalAlpha = fogA(l.z);
   const pr = project(l.laneF, Math.max(0.001, l.z));
   const r = LANE_W() * 0.2 * pr.p;
   const y = pr.y - r * 1.9 - Math.sin(l.spin * 1.5) * r * 0.3;
@@ -2747,13 +2835,20 @@ function drawLetter(l) {
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.fillText(HUNT_WORD[l.idx], pr.x, y + r * 0.1);
   ctx.textBaseline = 'alphabetic';
+  ctx.globalAlpha = 1;
 }
 
 function drawDecor(d) {
   if (d.z > ZMAX) return;
+  ctx.globalAlpha = fogA(d.z);
   const pr = project(d.laneF, Math.max(0.001, d.z));
   const s = LANE_W() * 0.9 * pr.p;
   const x = pr.x, y = pr.y;
+  // soft ground shadow cast by the afternoon sun
+  ctx.fillStyle = 'rgba(20,40,20,.18)';
+  ctx.beginPath();
+  ctx.ellipse(x - s * 0.18, y - s * 0.02, s * 0.42, s * 0.1, 0, 0, 7);
+  ctx.fill();
   switch (d.kind) {
     case 'tree':
       ctx.fillStyle = '#7a4a21';
@@ -2856,6 +2951,7 @@ function drawDecor(d) {
       break;
     }
   }
+  ctx.globalAlpha = 1;
 }
 
 function drawPlayer() {
