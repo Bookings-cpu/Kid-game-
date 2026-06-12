@@ -242,12 +242,13 @@ button { font-family:inherit; }
 }
 #box-reward { font-size:22px; font-weight:900; color:#ffd23e; min-height:30px; text-shadow:0 2px 0 rgba(0,0,0,.3); }
 
-/* hoverboard button */
+/* hoverboard button — fixed so it really sits at the bottom of the screen */
 .btn-board {
-  position:absolute; bottom:26px; left:16px; pointer-events:auto;
+  position:fixed; bottom:26px; left:16px; pointer-events:auto;
   background:linear-gradient(180deg,#54d8ff,#1f8fe0); font-size:22px; padding:12px 18px;
   border-radius:50px; animation:pulse 1.4s infinite;
 }
+.continue-score { font-size:18px; font-weight:800; color:#ffd23e; }
 
 /* word hunt */
 .hunt-card { border:2px dashed rgba(255,210,62,.55); }

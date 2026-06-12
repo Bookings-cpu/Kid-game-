@@ -849,6 +849,7 @@ const G = {
   revives: 0, invinc: 0, shake: 0, dieT: 0, phase: 0,
   runMissions: [], doubled: false, lastSafe: 1,
   combo: 0, comboT: 0,
+  annQ: [], annT: 0, bestBeaten: false,
   continueTimer: null, scoreTick: null,
 };
 
@@ -869,7 +870,11 @@ function startRun() {
     revives: 0, invinc: 1.5, shake: 0, dieT: 0, phase: 0,
     runMissions: [], doubled: false, lastSafe: 1,
     combo: 0, comboT: 0,
+    annQ: [], annT: 0, bestBeaten: false,
   });
+  // remind the player what they're chasing this run
+  const goal = S.missions.find(m => m.prog < m.target);
+  if (goal) addFloat(`🎯 ${missionText(goal)}!`, W / 2, H * 0.3, '#ffd23e', 27);
   if (charDef().bonus.startShield) G.pu.shield = puDuration('shield');
   clearInterval(Ad.timer);
   Ad.onReward = null; // a new run voids any pending ad reward
@@ -1064,6 +1069,32 @@ function update(dt) {
   const scoreBonus = 1 + (charDef().bonus.score || 0);
   G.score += dz * 0.12 * G.mult * scoreBonus;
   missionEvent('score', Math.floor(G.score));
+
+  // THE moment: beating your own record live, mid-run
+  if (!G.bestBeaten && S.best > 200 && G.score > S.best) {
+    G.bestBeaten = true;
+    addFloat('🏆 NEW BEST!! KEEP GOING!!', W / 2, H * 0.3, '#ffd23e', 38);
+    AudioSys.sfx('mission');
+    G.flashT = Math.max(G.flashT, 0.25);
+    const pr = project(G.laneF, 0);
+    burst(pr.x, pr.y - 60, '#ffd23e', 22);
+    burst(pr.x, pr.y - 60, '#ff6ec4', 14);
+    if (navigator.vibrate) navigator.vibrate([50, 40, 80]);
+  }
+
+  tickAnnounce(dt);
+
+  // fever sparkle aura on the runner
+  if (G.fever > 0 && Math.random() < 0.6) {
+    const pr = project(G.laneF, 0);
+    G.parts.push({
+      x: pr.x + rand(-40, 40), y: pr.y - rand(20, 110),
+      vx: rand(-40, 40), vy: rand(-120, -30),
+      life: rand(0.3, 0.6),
+      color: `hsl(${(G.phase * 160 + rand(0, 120)) % 360}, 95%, 65%)`,
+      size: rand(2, 5),
+    });
+  }
 
   // lane movement + chase camera
   G.laneF = lerp(G.laneF, G.laneTarget, Math.min(1, dt * 12));
@@ -1270,7 +1301,7 @@ function update(dt) {
         G.score += bonus;
         addFloat(`COMBO x${G.combo}! +${bonus}`, W / 2, H * 0.37, '#ffd23e', 26);
       }
-      if (G.fever <= 0 && G.combo >= 15 && G.combo % 15 === 0) {
+      if (G.fever <= 0 && G.combo >= 12 && G.combo % 12 === 0) {
         G.fever = 7;
         G.flashT = 0.35;
         addFloat('🔥 FEVER TIME!! x3 🔥', W / 2, H * 0.3, '#fff', 42);
@@ -1415,7 +1446,21 @@ function burst(x, y, color, n) {
 }
 
 function addFloat(text, x, y, color, size) {
-  G.floats.push({ text, x, y, color, life: size > 26 ? 1.4 : 1, size: size || 22 });
+  // big centre banners queue up so they never stack into mush
+  if (size >= 26) {
+    G.annQ.push({ text, color, size });
+    return;
+  }
+  G.floats.push({ text, x, y, color, life: 1, size: size || 22 });
+}
+
+function tickAnnounce(dt) {
+  if (G.annT > 0) G.annT -= dt;
+  if (G.annT <= 0 && G.annQ.length) {
+    const a = G.annQ.shift();
+    G.floats.push({ text: a.text, x: W / 2, y: H * 0.3, color: a.color, life: 1.5, size: a.size });
+    G.annT = 0.95;
+  }
 }
 
 /* ---------- crash / continue / game over ---------- */
@@ -1444,6 +1489,7 @@ function crash() {
 function showContinue() {
   G.state = 'continue';
   const cost = reviveCost();
+  $('continue-score').textContent = `Keep your ${fmt(G.score)} score alive!`;
   $('revive-cost').textContent = fmt(cost);
   $('btn-revive-coins').disabled = false;
   $('btn-revive-coins').style.opacity = (S.coins + G.runCoins) >= cost ? '1' : '.5';
@@ -2683,6 +2729,7 @@ function frame(now) {
     G.parts = G.parts.filter(p => p.life > 0);
     if (G.dieT <= 0) showContinue();
   }
+  if (G.state === 'dying' || G.state === 'over' || G.state === 'continue') tickAnnounce(dt);
   if (G.state === 'over' || G.state === 'continue') {
     // keep confetti / sparks falling behind the dialog
     for (const p of G.parts) {

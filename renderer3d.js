@@ -621,15 +621,18 @@ window.R3D = (() => {
       const beam = new THREE.Mesh(new THREE.BoxGeometry(8.4, 0.4, 0.5), gm);
       beam.position.y = 3.6;
       gg.add(beam);
-      const sign = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 0.5),
-        new THREE.MeshBasicMaterial({ map: spriteTex((x, s) => {
-          x.fillStyle = '#ffd23e';
-          x.beginPath(); x.roundRect(0, s * 0.3, s, s * 0.4, s * 0.08); x.fill();
-          x.fillStyle = '#5b3a00';
-          x.font = `800 ${s * 0.22}px "Baloo 2","Comic Sans MS",sans-serif`;
-          x.textAlign = 'center'; x.textBaseline = 'middle';
-          x.fillText('RASCAL EXPRESS', s / 2, s / 2);
-        }, 256), transparent: true }));
+      const signC = document.createElement('canvas');
+      signC.width = 320; signC.height = 80;
+      const sx = signC.getContext('2d');
+      sx.fillStyle = '#ffd23e';
+      sx.beginPath(); sx.roundRect(2, 6, 316, 68, 14); sx.fill();
+      sx.strokeStyle = '#8a6200'; sx.lineWidth = 5; sx.stroke();
+      sx.fillStyle = '#5b3a00';
+      sx.font = '800 38px "Baloo 2","Comic Sans MS",sans-serif';
+      sx.textAlign = 'center'; sx.textBaseline = 'middle';
+      sx.fillText('RASCAL EXPRESS', 160, 42);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6),
+        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signC), transparent: true }));
       sign.position.set(0, 3.6, 0.3);
       gg.add(sign);
       gg.userData.amb = { side: 0, i, spacing: 19, x: 0 };
