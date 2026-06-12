@@ -1108,25 +1108,53 @@ function drawCharacter(ctx, x, y, size, def, opts) {
   const legLift = r * 0.42 * (1 - slide);
   const by = -(r * squashY + legLift) - bob;   // body centre
 
-  // legs (tucked when rolling)
-  if (slide < 0.4) {
-    const hipY = by + r * 0.55 * squashY;
-    ctx.strokeStyle = shade(def.body, -0.28);
-    ctx.lineWidth = r * 0.22;
-    for (const s of [-1, 1]) {
-      const sw = swing * s;
-      const tuck = jump > 0.3;
-      const fx = s * r * 0.28 + (tuck ? 0 : sw * r * 0.42);
-      const fy = tuck ? by + r * 0.85 : -r * 0.05 - Math.max(0, sw) * r * 0.28;
+  // chunky two-segment limbs: outline pass then colour pass, bent at the joint
+  const limb = (x1, y1, x2, y2, x3, y3, w, col, outCol) => {
+    ctx.lineJoin = 'round';
+    for (const [lw, c] of [[w * 1.4, outCol], [w, col]]) {
+      ctx.strokeStyle = c;
+      ctx.lineWidth = lw;
       ctx.beginPath();
-      ctx.moveTo(s * r * 0.26, hipY);
-      ctx.lineTo(fx, fy);
+      ctx.moveTo(x1, y1);
+      ctx.quadraticCurveTo(x2, y2, x3, y3);
       ctx.stroke();
-      // trainers
-      ctx.fillStyle = '#fff';
-      ctx.beginPath(); ctx.ellipse(fx + s * r * 0.06, fy, r * 0.21, r * 0.13, 0, 0, 7); ctx.fill();
-      ctx.fillStyle = '#e8443a';
-      ctx.beginPath(); ctx.ellipse(fx + s * r * 0.06, fy + r * 0.05, r * 0.21, r * 0.07, 0, 0, 7); ctx.fill();
+    }
+  };
+  const outCol = shade(def.body, -0.5);
+
+  const shoe = (fx, fy, s) => {
+    // sole
+    ctx.fillStyle = '#e8443a';
+    ctx.beginPath(); ctx.ellipse(fx + s * r * 0.09, fy + r * 0.07, r * 0.26, r * 0.1, 0, 0, 7); ctx.fill();
+    // trainer body
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.ellipse(fx + s * r * 0.07, fy - r * 0.03, r * 0.23, r * 0.15, 0, 0, 7); ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,.25)';
+    ctx.lineWidth = Math.max(1, r * 0.03);
+    ctx.stroke();
+    // lace stripe
+    ctx.strokeStyle = '#e8443a';
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(fx - s * r * 0.03, fy - r * 0.12);
+    ctx.lineTo(fx + s * r * 0.12, fy - r * 0.03);
+    ctx.stroke();
+  };
+
+  // legs: front-view pump cycle with knees that bend outward (tucked when rolling)
+  if (slide < 0.4) {
+    const hipY = by + r * 0.5 * squashY;
+    const legCol = shade(def.body, -0.18);
+    for (const s of [-1, 1]) {
+      const lift = run ? Math.max(0, Math.sin(phase * 14 + (s > 0 ? 0 : Math.PI))) : 0;
+      const tuck = jump > 0.3;
+      const hx = s * r * 0.26;
+      const fx = tuck ? s * r * 0.36 : s * r * 0.3;
+      const fy = tuck ? by + r * 0.7 : -r * 0.04 - lift * r * 0.5;
+      const kx = s * (r * 0.46 + lift * r * 0.12);
+      const ky = tuck ? by + r * 0.45 : lerp(hipY, fy, 0.45);
+      limb(hx, hipY, kx, ky, fx, fy, r * 0.21, legCol, outCol);
+      shoe(fx, fy, s);
     }
   }
 
@@ -1159,18 +1187,27 @@ function drawCharacter(ctx, x, y, size, def, opts) {
     ctx.beginPath(); ctx.arc(0, by, r * 1.3, Math.PI - 0.5, Math.PI + 0.6); ctx.stroke();
   }
 
-  // arms (raised when jumping — wheee!)
+  // arms: bent at the elbow, pumping opposite the legs (raised when jumping — wheee!)
   if (slide < 0.4) {
-    ctx.strokeStyle = shade(def.body, -0.18);
-    ctx.lineWidth = r * 0.19;
+    const armCol = shade(def.body, -0.1);
     for (const s of [-1, 1]) {
-      const sw = -swing * s;
-      const sx = s * r * 0.72 * squashX, sy = by + r * 0.02;
-      const hx = jump > 0.3 ? s * r * 1.05 : sx + s * r * 0.2 + sw * r * 0.3;
-      const hy = jump > 0.3 ? by - r * 0.75 : sy + r * 0.5 - sw * r * 0.25;
-      ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(hx, hy); ctx.stroke();
+      const pump = run ? Math.sin(phase * 14 + (s > 0 ? Math.PI : 0)) : 0;
+      const sx = s * r * 0.68 * squashX, sy = by + r * 0.05;
+      let ex, ey, hx, hy2;
+      if (jump > 0.3) {
+        ex = s * r * 1.12; ey = by - r * 0.3;
+        hx = s * r * 0.88; hy2 = by - r * 1.0;
+      } else {
+        ex = sx + s * r * 0.32; ey = sy + r * 0.28 - pump * r * 0.12;
+        hx = sx + s * r * 0.16; hy2 = sy + r * 0.55 - pump * r * 0.32;
+      }
+      limb(sx, sy, ex, ey, hx, hy2, r * 0.18, armCol, outCol);
+      // mitten hand
       ctx.fillStyle = def.belly;
-      ctx.beginPath(); ctx.arc(hx, hy, r * 0.13, 0, 7); ctx.fill();
+      ctx.beginPath(); ctx.arc(hx, hy2, r * 0.15, 0, 7); ctx.fill();
+      ctx.strokeStyle = outCol;
+      ctx.lineWidth = Math.max(1, r * 0.04);
+      ctx.stroke();
     }
   }
 
