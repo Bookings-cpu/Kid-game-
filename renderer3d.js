@@ -680,10 +680,25 @@ window.R3D = (() => {
 
   /* ---------- per-frame sync ---------- */
   const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+  let perfN = 0, perfAcc = 0, perfLast = 0, perfDecided = false;
 
   function render(o) {
     const G = o.G;
     ensureChar(o.charDef);
+
+    // adaptive quality: weak devices automatically lose shadows + resolution
+    const nowT = performance.now();
+    if (perfLast && !perfDecided) {
+      perfAcc += nowT - perfLast;
+      if (++perfN >= 90) {
+        perfDecided = true;
+        if (perfAcc / perfN > 26) {
+          renderer.shadowMap.enabled = false;
+          renderer.setPixelRatio(1);
+        }
+      }
+    }
+    perfLast = nowT;
 
     // sky / fog / ground colours follow the theme + day cycle
     const sg = skyCtx.createLinearGradient(0, 0, 0, 256);

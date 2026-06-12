@@ -303,6 +303,33 @@ button { font-family:inherit; }
   .btn-round { width:62px; height:62px; font-size:23px; }
 }
 
+/* very short windows: compact menu so PLAY is always on screen */
+@media (max-height:660px) {
+  #scr-menu { gap:7px; padding:10px 16px 16px; }
+  .game-title { font-size:min(8.5vh,42px); }
+  #menu-char { width:min(16vh,110px); }
+  .menu-burst { width:150px !important; height:150px !important; }
+  .btn-play { font-size:19px; padding:10px 22px; width:min(60vw,280px); }
+  .btn-round { width:52px; height:52px; font-size:19px; border-radius:16px; }
+  .btn-round small { font-size:9px; }
+  #btn-howto { font-size:13px; }
+  .menu-top .pill, .level-row .pill { font-size:13px; padding:4px 10px; }
+}
+
+/* phones held sideways get a friendly rotate prompt */
+#rotate-overlay {
+  display:none; position:fixed; inset:0; z-index:300; background:linear-gradient(180deg,#3e8ef7,#6cc4ff);
+  flex-direction:column; align-items:center; justify-content:center; gap:10px; text-align:center;
+}
+#rotate-overlay div { font-size:64px; animation:titlebounce 2s ease-in-out infinite; }
+#rotate-overlay b { font-size:24px; }
+#rotate-overlay span { opacity:.85; }
+@media (orientation:landscape) and (max-height:480px) {
+  #rotate-overlay { display:flex; }
+}
+/* let short screens scroll the menu instead of cutting it off */
+#scr-menu { overflow-y:auto; }
+
 /* compact dialogs so buttons are never cut off on short screens */
 #ovl-over .dialog { gap:8px; }
 .over-stats { padding:9px 14px; }
@@ -582,6 +609,9 @@ button { font-family:inherit; }
 </div>
 
 <div id="toasts"></div>
+
+<!-- portrait-first: ask small landscape screens to rotate -->
+<div id="rotate-overlay"><div>🔄</div><b>Please turn your phone!</b><span>Rail Rascals plays tall, not wide</span></div>
 
 <script>
 /**
@@ -1275,10 +1305,25 @@ window.R3D = (() => {
 
   /* ---------- per-frame sync ---------- */
   const _c1 = new THREE.Color(), _c2 = new THREE.Color();
+  let perfN = 0, perfAcc = 0, perfLast = 0, perfDecided = false;
 
   function render(o) {
     const G = o.G;
     ensureChar(o.charDef);
+
+    // adaptive quality: weak devices automatically lose shadows + resolution
+    const nowT = performance.now();
+    if (perfLast && !perfDecided) {
+      perfAcc += nowT - perfLast;
+      if (++perfN >= 90) {
+        perfDecided = true;
+        if (perfAcc / perfN > 26) {
+          renderer.shadowMap.enabled = false;
+          renderer.setPixelRatio(1);
+        }
+      }
+    }
+    perfLast = nowT;
 
     // sky / fog / ground colours follow the theme + day cycle
     const sg = skyCtx.createLinearGradient(0, 0, 0, 256);
@@ -4532,6 +4577,14 @@ bind('btn-confirm-yes', () => {
 /* pause when the tab is hidden */
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && G.state === 'playing') pauseGame();
+});
+/* lose focus (e.g. embedded in a games portal) → pause and go quiet */
+window.addEventListener('blur', () => {
+  if (G.state === 'playing') pauseGame();
+  if (AudioSys.ctx && AudioSys.ctx.state === 'running') AudioSys.ctx.suspend().catch(() => {});
+});
+window.addEventListener('focus', () => {
+  if (AudioSys.ctx && AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume().catch(() => {});
 });
 
 /* first user gesture unlocks audio + music */

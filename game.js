@@ -3097,6 +3097,14 @@ bind('btn-confirm-yes', () => {
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && G.state === 'playing') pauseGame();
 });
+/* lose focus (e.g. embedded in a games portal) → pause and go quiet */
+window.addEventListener('blur', () => {
+  if (G.state === 'playing') pauseGame();
+  if (AudioSys.ctx && AudioSys.ctx.state === 'running') AudioSys.ctx.suspend().catch(() => {});
+});
+window.addEventListener('focus', () => {
+  if (AudioSys.ctx && AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume().catch(() => {});
+});
 
 /* first user gesture unlocks audio + music */
 window.addEventListener('pointerdown', () => { AudioSys.ensure(); AudioSys.startMusic(); }, { once: true });
