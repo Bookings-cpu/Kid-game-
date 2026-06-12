@@ -1,4 +1,4 @@
-# 🌟 Sky Dash!
+# 🌟 Rail Rascals!
 
 A fast, colourful **endless-runner game for kids**, inspired by the most-downloaded
 mobile game of all time (Subway Surfers, 3B+ downloads) and the monetization model

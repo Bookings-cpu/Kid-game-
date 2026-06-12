@@ -1,5 +1,5 @@
-/* Sky Dash! service worker — cache everything so the game works offline */
-const CACHE = 'skydash-v2';
+/* Rail Rascals! service worker — cache everything so the game works offline */
+const CACHE = 'railrascals-v1';
 const ASSETS = ['./', 'index.html', 'style.css', 'game.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {

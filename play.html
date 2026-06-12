@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="description" content="Sky Dash! - a super fun endless runner game for kids">
+<meta name="description" content="Rail Rascals! - a super fun endless runner game for kids">
 <meta name="theme-color" content="#3e8ef7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<title>Sky Dash! 🌟</title>
+<title>Rail Rascals! 🚂</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;800&display=swap" rel="stylesheet">
@@ -16,7 +16,7 @@
 
 
 <style>
-/* ============== Sky Dash! — kid-friendly UI ============== */
+/* ============== Rail Rascals! — kid-friendly UI ============== */
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html, body { height:100%; overflow:hidden; }
 body {
@@ -57,7 +57,7 @@ button { font-family:inherit; }
   display:inline-flex; align-items:center; gap:6px; backdrop-filter:blur(4px);
 }
 .game-title {
-  z-index:1; font-size:min(17vw,76px); line-height:.95; text-align:center; letter-spacing:2px; color:#fff;
+  z-index:1; font-size:min(13.5vw,62px); line-height:.95; text-align:center; letter-spacing:2px; color:#fff;
   text-shadow:0 4px 0 #e8650d, 0 8px 0 rgba(0,0,0,.18), 0 12px 24px rgba(0,0,0,.25);
   -webkit-text-stroke:2px #ff8c1a;
   animation:titlebounce 2.4s ease-in-out infinite;
@@ -255,7 +255,7 @@ button { font-family:inherit; }
     <div class="pill coin-pill">🪙 <span id="menu-coins">0</span></div>
     <div class="pill">🏆 <span id="menu-best">0</span></div>
   </div>
-  <h1 class="game-title">SKY<br>DASH!</h1>
+  <h1 class="game-title">RAIL<br>RASCALS!</h1>
   <canvas id="menu-char" width="180" height="180"></canvas>
   <button id="btn-play" class="btn btn-big btn-play">▶ PLAY!</button>
   <div class="menu-row">
@@ -522,7 +522,7 @@ const MISSION_TPLS = [
 ];
 
 /* ============================== save state ============================== */
-const SAVE_KEY = 'skydash_save_v1';
+const SAVE_KEY = 'railrascals_save_v1';
 
 function defaultSave() {
   return {

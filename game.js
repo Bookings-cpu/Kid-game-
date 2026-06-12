@@ -62,7 +62,7 @@ const MISSION_TPLS = [
 ];
 
 /* ============================== save state ============================== */
-const SAVE_KEY = 'skydash_save_v1';
+const SAVE_KEY = 'railrascals_save_v1';
 
 function defaultSave() {
   return {

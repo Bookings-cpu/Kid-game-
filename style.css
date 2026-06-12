@@ -1,4 +1,4 @@
-/* ============== Sky Dash! — kid-friendly UI ============== */
+/* ============== Rail Rascals! — kid-friendly UI ============== */
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html, body { height:100%; overflow:hidden; }
 body {
@@ -39,7 +39,7 @@ button { font-family:inherit; }
   display:inline-flex; align-items:center; gap:6px; backdrop-filter:blur(4px);
 }
 .game-title {
-  z-index:1; font-size:min(17vw,76px); line-height:.95; text-align:center; letter-spacing:2px; color:#fff;
+  z-index:1; font-size:min(13.5vw,62px); line-height:.95; text-align:center; letter-spacing:2px; color:#fff;
   text-shadow:0 4px 0 #e8650d, 0 8px 0 rgba(0,0,0,.18), 0 12px 24px rgba(0,0,0,.25);
   -webkit-text-stroke:2px #ff8c1a;
   animation:titlebounce 2.4s ease-in-out infinite;
