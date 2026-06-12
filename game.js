@@ -784,14 +784,19 @@ function drawMenuChar() {
 
 /* ============================== game engine ============================== */
 const canvas = $('game-canvas');
-const ctx = canvas.getContext('2d');
+const fxCanvas = $('fx-canvas');
+// real-time 3D when WebGL is available; the 2D canvas renderer is the fallback
+const USE3D = !!(window.R3D && R3D.ok && R3D.init(canvas));
+const ctx = (USE3D ? fxCanvas : canvas).getContext('2d');
 let W = 0, H = 0, DPR = 1;
 
 function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   W = window.innerWidth; H = window.innerHeight;
-  canvas.width = W * DPR; canvas.height = H * DPR;
+  const c2d = USE3D ? fxCanvas : canvas;
+  c2d.width = W * DPR; c2d.height = H * DPR;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  if (USE3D) R3D.resize(W, H, DPR);
 }
 window.addEventListener('resize', resize);
 resize();
@@ -802,6 +807,7 @@ const HORIZON = () => H * 0.36;
 const BASE_Y = () => H * 0.86;
 
 function project(laneF, z) {
+  if (USE3D) return R3D.toScreen(laneF, z);
   // perspective tightens as you speed up — the world rushes harder
   const camd = CAMD - clamp((G.speed - 300) / 460, 0, 1) * 38;
   const p = camd / (z + camd);
@@ -2548,6 +2554,121 @@ function drawPlayer() {
   }
 }
 
+/* ---------- 3D frame: WebGL world + 2D overlay juice ---------- */
+function render3D() {
+  // colours follow the same theme/day cycle as the 2D renderer
+  const cyc = (G.dist / 2500) % SKIES.length;
+  const i0 = Math.floor(cyc), i1 = (i0 + 1) % SKIES.length, ft = cyc - i0;
+  const t0 = THEMES[i0 % THEMES.length], t1 = THEMES[i1 % THEMES.length];
+  R3D.render({
+    G,
+    charDef: charDef(),
+    skyBot: lerpColor(SKIES[i0][1], SKIES[i1][1], ft),
+    ground: lerpColor(t0.ground[0], t1.ground[0], ft),
+    huntWord: HUNT_WORD,
+  });
+
+  // ---- overlay: particles, popups and full-screen juice ----
+  ctx.clearRect(0, 0, W, H);
+
+  // night tint
+  const nightW = (i0 === 2 ? 1 - ft : 0) + (i1 === 2 ? ft : 0);
+  if (nightW > 0.05) {
+    ctx.fillStyle = `rgba(14,14,72,${0.28 * nightW})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // train-rush warning chevrons
+  if ((G.rushWarn > 0 || G.rushLeft > 0) && Math.floor(G.phase * 5) % 2 === 0) {
+    for (const lane of G.rushLanes) {
+      const wp = project(lane, 850);
+      const s = LANE_W() * 0.5 * wp.p;
+      ctx.fillStyle = 'rgba(255,60,50,.9)';
+      ctx.beginPath();
+      ctx.moveTo(wp.x - s, wp.y - s * 2.4);
+      ctx.lineTo(wp.x + s, wp.y - s * 2.4);
+      ctx.lineTo(wp.x, wp.y - s * 0.8);
+      ctx.closePath(); ctx.fill();
+    }
+  }
+
+  // particles
+  for (const p of G.parts) {
+    ctx.globalAlpha = clamp(p.life / 0.5, 0, 1);
+    ctx.fillStyle = p.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 7); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // floating texts
+  for (const f of G.floats) {
+    ctx.globalAlpha = clamp(f.life, 0, 1);
+    ctx.font = `800 ${f.size || 22}px "Baloo 2", "Comic Sans MS", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.45)';
+    ctx.strokeText(f.text, f.x, f.y);
+    ctx.fillStyle = f.color;
+    ctx.fillText(f.text, f.x, f.y);
+  }
+  ctx.globalAlpha = 1;
+
+  // boost speed lines
+  if (G.pu.boost > 0 && G.state === 'playing') {
+    ctx.strokeStyle = 'rgba(255,255,255,.45)';
+    ctx.lineWidth = 3;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < 9; i++) {
+      const x = Math.random() < 0.5 ? rand(0, W * 0.16) : rand(W * 0.84, W);
+      const y = rand(0, H * 0.9);
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + (x - W / 2) * 0.06, y + rand(40, 130));
+      ctx.stroke();
+    }
+  }
+
+  // coins flying to the wallet
+  for (const fc of G.flyCoins) {
+    ctx.fillStyle = '#c98a00';
+    ctx.beginPath(); ctx.arc(fc.x, fc.y, 9, 0, 7); ctx.fill();
+    ctx.fillStyle = '#ffd23e';
+    ctx.beginPath(); ctx.arc(fc.x, fc.y, 7, 0, 7); ctx.fill();
+  }
+
+  // danger pulse while the guard is close
+  if (G.state === 'playing' && G.guardD > 0.55) {
+    const a = ((G.guardD - 0.55) / 0.45) * (0.22 + 0.13 * Math.sin(G.phase * 8));
+    const dg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.72);
+    dg.addColorStop(0, 'rgba(255,30,30,0)');
+    dg.addColorStop(1, `rgba(255,30,30,${a.toFixed(3)})`);
+    ctx.fillStyle = dg;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // fever rainbow border + wash
+  if (G.fever > 0) {
+    const hue = (G.phase * 160) % 360;
+    ctx.fillStyle = `hsla(${hue}, 95%, 60%, .06)`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = `hsla(${hue}, 95%, 62%, ${0.35 + 0.25 * Math.sin(G.phase * 10)})`;
+    ctx.lineWidth = 12;
+    ctx.beginPath(); rrPath(6, 6, W - 12, H - 12, 26); ctx.stroke();
+  }
+
+  // white pop flash
+  if (G.flashT > 0) {
+    ctx.fillStyle = `rgba(255,255,255,${clamp(G.flashT / 0.35, 0, 1) * 0.65})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+
+  // soft vignette
+  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.78);
+  vg.addColorStop(0, 'rgba(0,0,0,0)');
+  vg.addColorStop(1, 'rgba(0,0,0,.2)');
+  ctx.fillStyle = vg;
+  ctx.fillRect(0, 0, W, H);
+}
+
 /* ---------- main loop ---------- */
 let lastT = performance.now();
 function frame(now) {
@@ -2570,7 +2691,9 @@ function frame(now) {
     }
     G.parts = G.parts.filter(p => p.life > 0);
   }
-  if (!$('scr-game').classList.contains('hidden')) render();
+  if (!$('scr-game').classList.contains('hidden')) {
+    if (USE3D) render3D(); else render();
+  }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

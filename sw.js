@@ -1,6 +1,6 @@
 /* Rail Rascals! service worker — cache everything so the game works offline */
-const CACHE = 'railrascals-v1';
-const ASSETS = ['./', 'index.html', 'style.css', 'game.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+const CACHE = 'railrascals-v2';
+const ASSETS = ['./', 'index.html', 'style.css', 'game.js', 'three.min.js', 'renderer3d.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
