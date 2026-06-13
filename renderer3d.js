@@ -753,7 +753,7 @@ window.R3D = (() => {
     if (charId !== def.id) {
       if (charMesh) scene.remove(charMesh);
       charMesh = makeChar(def);
-      charMesh.scale.setScalar(0.92);
+      charMesh.scale.setScalar(0.82);
       scene.add(charMesh);
       charId = def.id;
     }
@@ -822,18 +822,19 @@ window.R3D = (() => {
     ground.material.color.copy(_c2);
 
     // camera chase + roll + shake + crash zoom
+    // pulled back & raised for classic runner framing: more track ahead, hero sits low
     const sway = G.laneF * LANE * 0.5;
-    let cz = 6.4, cy = 3.25;
+    let cz = 8.6, cy = 4.9;
     if (G.state === 'dying') {
       const t = 1 - Math.max(0, G.dieT) / 0.9;
-      cz = 6.4 - t * 2.4; cy = 3.25 - t * 1.0;
+      cz = 8.6 - t * 3.4; cy = 4.9 - t * 1.6;
     }
     camera.position.set(
       sway + (G.shake > 0 ? (Math.random() - 0.5) * G.shake * 0.045 : 0),
       cy + (G.shake > 0 ? (Math.random() - 0.5) * G.shake * 0.035 : 0),
       cz
     );
-    camera.lookAt(sway * 0.85, 1.7, -10);
+    camera.lookAt(sway * 0.85, 1.05, -11);
     camera.rotation.z += G.roll * 1.4;
     // FOV widens with speed (and fever) — the rush you can feel
     const targetFov = 57 + Math.max(0, Math.min(1, (G.speed - 300) / 460)) * 9 + (G.fever > 0 ? 3 : 0);
