@@ -17,6 +17,7 @@ window.R3D = (() => {
   const sleepers = [], posts = [], railMats = [];
   const clouds = [], ambient = [], poles = [], gantries = [];
   let player, guard, shieldBall, board, blob;
+  let hemi, keySun;
   let R3D_THEME_COUNT = 4;
   const pools = new Map();
   const sprites = new Map();
@@ -568,8 +569,10 @@ window.R3D = (() => {
     scene.fog = new THREE.Fog(SKY.getHex(), 21, 44);
     camera = new THREE.PerspectiveCamera(58, 1, 0.1, 90);
 
-    scene.add(new THREE.HemisphereLight(0xdcefff, 0x5a7a4a, 0.5));
+    hemi = new THREE.HemisphereLight(0xdcefff, 0x5a7a4a, 0.5);
+    scene.add(hemi);
     const sun = new THREE.DirectionalLight(0xfff0d0, 1.55);
+    keySun = sun;
     sun.position.set(7, 13, 5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -863,9 +866,18 @@ window.R3D = (() => {
     skyCtx.fillStyle = sg;
     skyCtx.fillRect(0, 0, 2, 256);
     skyTexture.needsUpdate = true;
-    scene.fog.color.copy(_c2);
     _c2.setStyle(o.ground).offsetHSL(0, 0.1, 0);
     ground.material.color.copy(_c2);
+
+    // per-biome atmosphere: tint the sun, ambient and fog so each world has its own air
+    const at = o.atmos;
+    if (at && keySun) {
+      keySun.color.setStyle(at.sun); keySun.intensity = at.sunI;
+      hemi.color.setStyle(at.amb); hemi.intensity = at.ambI;
+      scene.fog.color.setStyle(at.fog); scene.fog.near = at.near; scene.fog.far = at.far;
+    } else {
+      scene.fog.color.copy(_c1);
+    }
 
     // camera chase + roll + shake + crash zoom
     // pulled back & raised for classic runner framing: more track ahead, hero sits low

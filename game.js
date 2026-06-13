@@ -106,6 +106,24 @@ const THEMES = [
 ];
 const SOUV_ICONS = ['🌼', '🌵', '❄️', '🍭', '🌋'];
 
+// per-biome atmosphere for the 3D renderer: sun colour/intensity, ambient tint,
+// fog colour tint + near/far. Gives each world its own light and air.
+const ATMOS = [
+  { sun: '#fff0d0', sunI: 1.55, amb: '#dcefff', ambI: 0.50, fog: '#cfe7ff', near: 22, far: 46 }, // Meadows: fresh
+  { sun: '#ffe6ad', sunI: 1.70, amb: '#ffe9cf', ambI: 0.55, fog: '#f3dca6', near: 16, far: 38 }, // Desert: hot, sandy haze
+  { sun: '#eaf3ff', sunI: 1.35, amb: '#cfe0ff', ambI: 0.62, fog: '#dce8fb', near: 17, far: 40 }, // Snow: cold, bright
+  { sun: '#ffe2f2', sunI: 1.55, amb: '#ffd6ec', ambI: 0.58, fog: '#ffd0ea', near: 20, far: 44 }, // Candy: sweet glow
+  { sun: '#ffcaa0', sunI: 1.45, amb: '#c89a86', ambI: 0.42, fog: '#7a3a26', near: 14, far: 34 }, // Volcano: ember, smoky
+];
+function lerpAtmos(a, b, t) {
+  return {
+    sun: lerpColor(a.sun, b.sun, t), amb: lerpColor(a.amb, b.amb, t),
+    fog: lerpColor(a.fog, b.fog, t),
+    sunI: lerp(a.sunI, b.sunI, t), ambI: lerp(a.ambI, b.ambI, t),
+    near: lerp(a.near, b.near, t), far: lerp(a.far, b.far, t),
+  };
+}
+
 // pets: little buddies that snatch coins for you
 const PETS = [
   { id: 'chick', icon: '🐤', name: 'Chick',  price: 2500,  cd: 6,   desc: 'Grabs a coin every 6s' },
@@ -2809,6 +2827,7 @@ function render3D() {
   const i0 = Math.floor(cyc), i1 = (i0 + 1) % SKIES.length, ft = cyc - i0;
   const t0 = THEMES[i0 % THEMES.length], t1 = THEMES[i1 % THEMES.length];
   const petDef = S.activePet ? PETS.find(p => p.id === S.activePet) : null;
+  const atmos = lerpAtmos(ATMOS[i0 % ATMOS.length], ATMOS[i1 % ATMOS.length], ft);
   R3D.render({
     G,
     charDef: charDef(),
@@ -2817,6 +2836,7 @@ function render3D() {
     ground: lerpColor(t0.ground[0], t1.ground[0], ft),
     huntWord: HUNT_WORD,
     petIcon: petDef ? petDef.icon : null,
+    atmos,
   });
 
   // ---- overlay: particles, popups and full-screen juice ----
