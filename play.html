@@ -1636,8 +1636,10 @@ window.R3D = (() => {
     const gd = G.guardD;
     guard.visible = (G.state === 'playing' || G.state === 'dying') && gd > 0.12;
     if (guard.visible) {
-      // trails slightly off your line so you can always see him coming
-      guard.position.set(G.guardLane * LANE + 0.6, 0, 1.9 + (1 - gd) * 2.6);
+      // stays behind you and offset to the side so your hero is never hidden;
+      // clamped so even at a catch he lunges close without covering the camera
+      const gz = Math.max(1.6, 2.6 + (1 - Math.min(gd, 1.2)) * 2.4);
+      guard.position.set(G.guardLane * LANE + 1.0, 0, gz);
       animateChar(guard, {
         run: true,
         phase: G.phase * 0.95,
