@@ -1600,6 +1600,7 @@ function startContinueCountdown() {
   $('continue-count').textContent = t;
   G.continueTimer = setInterval(() => {
     if (!$('mod-ad').classList.contains('hidden')) return; // pause while ad is open
+    if (G.blurred) return; // pause while the player has tabbed away
     t--;
     $('continue-count').textContent = Math.max(0, t);
     if (t <= 0) { clearInterval(G.continueTimer); gameOver(); }
@@ -3333,10 +3334,12 @@ document.addEventListener('visibilitychange', () => {
 });
 /* lose focus (e.g. embedded in a games portal) → pause and go quiet */
 window.addEventListener('blur', () => {
+  G.blurred = true; // freezes the continue countdown too
   if (G.state === 'playing') pauseGame();
   if (AudioSys.ctx && AudioSys.ctx.state === 'running') AudioSys.ctx.suspend().catch(() => {});
 });
 window.addEventListener('focus', () => {
+  G.blurred = false;
   if (AudioSys.ctx && AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume().catch(() => {});
 });
 

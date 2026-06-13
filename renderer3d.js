@@ -27,9 +27,44 @@ window.R3D = (() => {
     const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
     return x - Math.floor(x);
   };
-  const mat = (color, opts) => new THREE.MeshStandardMaterial(Object.assign({ color, roughness: 0.85, metalness: 0 }, opts || {}));
+  // cel-shaded look: banded toon lighting makes the low-poly style intentional
+  let TOON_GRAD = null;
+  function toonGrad() {
+    if (!TOON_GRAD) {
+      const data = new Uint8Array([56, 142, 226, 255]);
+      TOON_GRAD = new THREE.DataTexture(data, 4, 1, THREE.RedFormat);
+      TOON_GRAD.minFilter = THREE.NearestFilter;
+      TOON_GRAD.magFilter = THREE.NearestFilter;
+      TOON_GRAD.needsUpdate = true;
+    }
+    return TOON_GRAD;
+  }
+  const mat = (color, opts) => {
+    const o = Object.assign({}, opts || {});
+    delete o.roughness; delete o.metalness;
+    return new THREE.MeshToonMaterial(Object.assign({ color, gradientMap: toonGrad() }, o));
+  };
   const MATS = {};
   const cmat = (color) => (MATS[color] = MATS[color] || mat(color));
+
+  // procedural speckle textures give big flat surfaces real grain
+  function noiseTex(base, dots, n) {
+    const c = document.createElement('canvas');
+    c.width = c.height = 128;
+    const x = c.getContext('2d');
+    x.fillStyle = `rgb(${base},${base},${base})`;
+    x.fillRect(0, 0, 128, 128);
+    for (let i = 0; i < n; i++) {
+      const v = dots + ((i * 37) % 30) - 15;
+      x.fillStyle = `rgb(${v},${v},${v})`;
+      x.beginPath();
+      x.arc((i * 53.7) % 128, (i * 91.3) % 128, 1 + (i % 3), 0, 7);
+      x.fill();
+    }
+    const t = new THREE.CanvasTexture(c);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    return t;
+  }
 
   function spriteTex(draw, size) {
     const c = document.createElement('canvas');
@@ -96,6 +131,12 @@ window.R3D = (() => {
 
   function makeTrain() {
     const g = new THREE.Group();
+    // toon outline shell around the whole carriage
+    const shell = new THREE.Mesh(new THREE.BoxGeometry(1.66, 1.7, 1), OUTLINE);
+    shell.position.y = 1.05;
+    shell.scale.set(1.05, 1.05, 1.04);
+    g.add(shell);
+    g.userData.shell = shell;
     const body = new THREE.Mesh(new THREE.BoxGeometry(1.66, 1.7, 1), mat('#e8443a'));
     body.position.y = 1.05;
     body.castShadow = true;
@@ -338,8 +379,14 @@ window.R3D = (() => {
   }
   let FACE = null;
 
+  const OUTLINE = new THREE.MeshBasicMaterial({ color: 0x241a2e, side: THREE.BackSide });
   function makeChar(def) {
     const g = new THREE.Group();
+    // cartoon outline: an inflated black backside shell around the body silhouette
+    const outline = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 14), OUTLINE);
+    outline.scale.set(1.07, 1.16, 0.92);
+    outline.position.y = 0.95;
+    g.add(outline);
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 14), mat(def.body));
     body.scale.set(1, 1.08, 0.85);
     body.position.y = 0.95;
@@ -474,13 +521,15 @@ window.R3D = (() => {
     } catch (e) { return false; }
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.0;
 
     scene = new THREE.Scene();
     scene.fog = new THREE.Fog(SKY.getHex(), 21, 44);
     camera = new THREE.PerspectiveCamera(58, 1, 0.1, 90);
 
-    scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x668855, 0.5));
-    const sun = new THREE.DirectionalLight(0xffe9c0, 0.92);
+    scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x668855, 0.45));
+    const sun = new THREE.DirectionalLight(0xffeec8, 1.2);
     sun.position.set(6, 12, 5);
     sun.castShadow = true;
     sun.shadow.mapSize.set(1024, 1024);
@@ -488,13 +537,17 @@ window.R3D = (() => {
     sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -30;
     scene.add(sun);
 
-    ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 200), mat('#5fbe54'));
+    const grassMap = noiseTex(236, 205, 420);
+    grassMap.repeat.set(70, 46);
+    ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 200), mat('#5fbe54', { map: grassMap }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.z = -60;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    trackBed = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.6, 0.12, 70), mat('#bcae9c'));
+    const gravelMap = noiseTex(228, 188, 520);
+    gravelMap.repeat.set(5, 46);
+    trackBed = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.6, 0.12, 70), mat('#a08d7c', { map: gravelMap }));
     trackBed.position.set(0, 0.01, -28);
     trackBed.receiveShadow = true;
     scene.add(trackBed);
@@ -669,18 +722,24 @@ window.R3D = (() => {
       beam.position.y = 3.6;
       gg.add(beam);
       const signC = document.createElement('canvas');
-      signC.width = 320; signC.height = 80;
+      signC.width = 512; signC.height = 128;
       const sx = signC.getContext('2d');
       sx.fillStyle = '#ffd23e';
-      sx.beginPath(); sx.roundRect(2, 6, 316, 68, 14); sx.fill();
-      sx.strokeStyle = '#8a6200'; sx.lineWidth = 5; sx.stroke();
+      sx.beginPath(); sx.roundRect(4, 12, 504, 104, 22); sx.fill();
+      sx.strokeStyle = '#8a6200'; sx.lineWidth = 8; sx.stroke();
       sx.fillStyle = '#5b3a00';
-      sx.font = '800 38px "Baloo 2","Comic Sans MS",sans-serif';
       sx.textAlign = 'center'; sx.textBaseline = 'middle';
-      sx.fillText('RASCAL EXPRESS', 160, 42);
-      const sign = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.6),
+      // auto-fit: shrink the font until the label sits inside the sign with padding
+      let fsz = 56;
+      do {
+        sx.font = `800 ${fsz}px "Baloo 2","Comic Sans MS",sans-serif`;
+        if (sx.measureText('RASCAL EXPRESS').width <= 460) break;
+        fsz -= 2;
+      } while (fsz > 18);
+      sx.fillText('RASCAL EXPRESS', 256, 66);
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.1),
         new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signC), transparent: true }));
-      sign.position.set(0, 3.6, 0.3);
+      sign.position.set(0, 3.7, 0.32);
       gg.add(sign);
       gg.userData.amb = { side: 0, i, spacing: 19, x: 0 };
       scene.add(gg);
@@ -748,16 +807,18 @@ window.R3D = (() => {
     perfLast = nowT;
 
     // sky / fog / ground colours follow the theme + day cycle
+    // (saturation-boosted to compensate for filmic tone mapping)
+    _c1.setStyle(o.skyTop).offsetHSL(0, 0.14, 0.01);
+    _c2.setStyle(o.skyBot).offsetHSL(0, 0.14, 0.01);
     const sg = skyCtx.createLinearGradient(0, 0, 0, 256);
-    sg.addColorStop(0, o.skyTop);
-    sg.addColorStop(0.75, o.skyBot);
-    sg.addColorStop(1, o.skyBot);
+    sg.addColorStop(0, _c1.getStyle());
+    sg.addColorStop(0.75, _c2.getStyle());
+    sg.addColorStop(1, _c2.getStyle());
     skyCtx.fillStyle = sg;
     skyCtx.fillRect(0, 0, 2, 256);
     skyTexture.needsUpdate = true;
-    _c1.setStyle(o.skyBot);
-    scene.fog.color.copy(_c1);
-    _c2.setStyle(o.ground);
+    scene.fog.color.copy(_c2);
+    _c2.setStyle(o.ground).offsetHSL(0, 0.1, 0);
     ground.material.color.copy(_c2);
 
     // camera chase + roll + shake + crash zoom
@@ -816,6 +877,7 @@ window.R3D = (() => {
         const len = ob.len * K;
         m.position.set(ob.lane * LANE, 0, zz - len / 2);
         m.userData.body.scale.z = len;
+        m.userData.shell.scale.z = len * 1.02;
         m.userData.roof.scale.z = 0.35 * len;
         m.userData.body.material = cmat(TRAIN_COLS[ob.hue]);
         m.userData.roof.material = cmat(TRAIN_COLS[ob.hue]);
