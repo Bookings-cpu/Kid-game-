@@ -2821,6 +2821,21 @@ function render3D() {
   // ---- overlay: particles, popups and full-screen juice ----
   ctx.clearRect(0, 0, W, H);
 
+  // real bloom: sample the rendered 3D frame, crush to bright areas, blur, add back.
+  // Canvas2D filters are GPU-accelerated on real devices; skipped on weak ones.
+  if (!window.__lowGfx && ctx.filter !== undefined) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.34;
+    // darken first, then crush contrast so only the brightest pixels survive the bloom
+    ctx.filter = 'blur(8px) brightness(0.62) contrast(3.4) saturate(1.5)';
+    try { ctx.drawImage(canvas, 0, 0, W, H); } catch (e) { window.__lowGfx = true; }
+    ctx.filter = 'none';
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.restore();
+  }
+
   // night tint
   const nightW = (i0 === 2 ? 1 - ft : 0) + (i1 === 2 ? ft : 0);
   if (nightW > 0.05) {

@@ -1,0 +1,49 @@
+/* =========================================================================
+   Rail Rascals — Design Tokens (single source of truth for UI colour/spacing)
+   Mirrors ART_DIRECTION_MASTER.md §3. style.css consumes these via var().
+   ========================================================================= */
+:root {
+  /* ---- brand & action ---- */
+  --rr-brand:        #3e8ef7;  /* sky blue: brand, theme-color, menu top */
+  --rr-brand-2:      #6cc4ff;
+  --rr-action:       #ff7a00;  /* primary CTA orange (PLAY) */
+  --rr-action-2:     #ffb52e;
+
+  /* ---- reward / currency (the ONLY colour allowed to bloom) ---- */
+  --rr-gold:         #ffd23e;
+  --rr-gold-glow:    #ffe14d;
+  --rr-gold-deep:    #f0a000;
+  --rr-gold-ink:     #5b3a00;  /* text on gold */
+
+  /* ---- semantic state ---- */
+  --rr-danger:       #ff5e5e;  --rr-danger-deep: #d62f23;
+  --rr-success:      #5ad845;  --rr-success-deep:#2ca31e;
+  --rr-warning:      #ff9a3c;
+
+  /* ---- structure (purple UI world) ---- */
+  --rr-hero:         #7c5cff;  --rr-hero-deep:  #5232d0;
+  --rr-blue:         #54a9ff;  --rr-blue-deep:  #2f6df0;
+  --rr-grey:         #9aa3b5;  --rr-grey-deep:  #6b7484;
+
+  /* ---- neutrals / surfaces ---- */
+  --rr-bg:           #1a103c;
+  --rr-panel-top:    #2b1a6e;  --rr-panel-bot:  #4a2fbd;
+  --rr-dialog-top:   #3d2a96;  --rr-dialog-bot: #2b1a6e;
+  --rr-card:         rgba(255,255,255,.10);
+  --rr-pill:         rgba(20,16,60,.55);
+
+  /* ---- text ---- */
+  --rr-text:         #ffffff;
+  --rr-text-dim:     rgba(255,255,255,.80);
+
+  /* ---- shape / depth ---- */
+  --rr-radius-pill:  30px;
+  --rr-radius-btn:   18px;
+  --rr-radius-card:  18px;
+  --rr-radius-panel: 26px;
+  --rr-press:        0 5px 0 rgba(0,0,0,.25);   /* button press shadow */
+  --rr-press-down:   0 1px 0 rgba(0,0,0,.25);
+
+  /* ---- type ---- */
+  --rr-font: "Baloo 2", "Comic Sans MS", "Chalkboard SE", "Segoe UI", system-ui, sans-serif;
+}

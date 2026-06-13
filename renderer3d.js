@@ -557,7 +557,7 @@ window.R3D = (() => {
 
   function init(canvas) {
     try {
-      renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
     } catch (e) { return false; }
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -846,6 +846,7 @@ window.R3D = (() => {
         if (perfAcc / perfN > 26) {
           renderer.shadowMap.enabled = false;
           renderer.setPixelRatio(1);
+          window.__lowGfx = true; // also disables the canvas bloom pass
         }
       }
     }
@@ -909,7 +910,7 @@ window.R3D = (() => {
     for (const m of poles) scroll(m);
     // gantries arch overhead, but hide them as they reach the camera so the
     // big sign never slabs across the screen and covers the hero
-    for (const m of gantries) { scroll(m); m.visible = m.position.z < 5.0; }
+    for (const m of gantries) { scroll(m); m.visible = m.position.z < 3.4; }
     // clouds drift gently
     for (const c of clouds) {
       c.position.x += Math.sin(G.phase * 0.1) * 0; // anchored

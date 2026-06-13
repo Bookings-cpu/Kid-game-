@@ -1,4 +1,18 @@
 /* ============== Rail Rascals! — kid-friendly UI ============== */
+/* Design tokens — canonical source documented in game-art/tokens.css */
+:root {
+  --rr-brand:#3e8ef7; --rr-brand-2:#6cc4ff;
+  --rr-action:#ff7a00; --rr-action-2:#ffb52e;
+  --rr-gold:#ffd23e; --rr-gold-deep:#f0a000; --rr-gold-ink:#5b3a00;
+  --rr-danger:#ff5e5e; --rr-danger-deep:#d62f23;
+  --rr-success:#5ad845; --rr-success-deep:#2ca31e;
+  --rr-hero:#7c5cff; --rr-hero-deep:#5232d0;
+  --rr-blue:#54a9ff; --rr-blue-deep:#2f6df0;
+  --rr-grey:#9aa3b5; --rr-grey-deep:#6b7484;
+  --rr-panel-top:#2b1a6e; --rr-panel-bot:#4a2fbd;
+  --rr-pill:rgba(20,16,60,.55); --rr-card:rgba(255,255,255,.10);
+  --rr-radius-btn:18px;
+}
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 html, body { height:100%; overflow:hidden; }
 body {
@@ -69,7 +83,7 @@ button { font-family:inherit; }
 }
 .btn:active { transform:translateY(4px); box-shadow:0 1px 0 rgba(0,0,0,.25); }
 .btn-big { font-size:23px; padding:15px 30px; width:min(86vw,330px); }
-.btn-play { background:linear-gradient(180deg,#ffb52e,#ff7a00); animation:pulse 1.6s ease-in-out infinite; overflow:hidden; }
+.btn-play { background:linear-gradient(180deg,var(--rr-action-2,#ffb52e),var(--rr-action)); animation:pulse 1.6s ease-in-out infinite; overflow:hidden; }
 .btn-play::after {
   content:""; position:absolute; top:-50%; bottom:-50%; width:36px;
   background:rgba(255,255,255,.45); transform:rotate(20deg);
@@ -77,10 +91,10 @@ button { font-family:inherit; }
 }
 @keyframes shine { 0%, 55% { left:-60px; } 85%, 100% { left:120%; } }
 @keyframes pulse { 0%,100% { transform:scale(1);} 50% { transform:scale(1.06);} }
-.btn-green { background:linear-gradient(180deg,#5ad845,#2ca31e); }
+.btn-green { background:linear-gradient(180deg,var(--rr-success),var(--rr-success-deep)); }
 .btn-blue  { background:linear-gradient(180deg,#54a9ff,#2f6df0); }
 .btn-yellow{ background:linear-gradient(180deg,#ffd23e,#f0a000); color:#5b3a00; }
-.btn-red   { background:linear-gradient(180deg,#ff6a5e,#d62f23); }
+.btn-red   { background:linear-gradient(180deg,var(--rr-danger),var(--rr-danger-deep)); }
 .btn-grey  { background:linear-gradient(180deg,#9aa3b5,#6b7484); }
 .btn-link  { background:none; box-shadow:none; color:#fff; opacity:.85; text-decoration:underline; font-size:16px; }
 .btn-link:active { transform:none; }
@@ -124,7 +138,7 @@ button { font-family:inherit; }
 .pu-bar > i { display:block; height:100%; background:#ffd23e; border-radius:3px; }
 
 /* ---------- panel screens (shop, heroes, ...) ---------- */
-.panel-screen { background:linear-gradient(180deg,#2b1a6e,#4a2fbd); }
+.panel-screen { background:linear-gradient(180deg,var(--rr-panel-top),var(--rr-panel-bot)); }
 .panel-head {
   width:100%; max-width:520px; display:flex; align-items:center; justify-content:space-between;
   padding:14px 16px; gap:10px;
