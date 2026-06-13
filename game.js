@@ -24,6 +24,7 @@ const irand = (a, b) => Math.floor(rand(a, b + 1));
 const pick = (arr) => arr[Math.floor(RNG() * arr.length)];
 const fmt = (n) => Math.floor(n).toLocaleString('en-GB');
 const todayStr = () => new Date().toISOString().slice(0, 10);
+const CICO = '<svg class="ico-sm"><use href="#i-coin"/></svg>'; // bespoke coin for innerHTML labels
 
 function bumpEl(id) {
   const el = $(id).parentElement;
@@ -559,7 +560,7 @@ function checkDaily() {
   DAILY_REWARDS.forEach((r, i) => {
     const cell = document.createElement('div');
     cell.className = 'daily-cell' + (i < idx ? ' past' : i === idx ? ' today' : '');
-    cell.innerHTML = `Day ${i + 1}<span class="d-coins">🪙${r}</span>`;
+    cell.innerHTML = `Day ${i + 1}<span class="d-coins">${CICO}${r}</span>`;
     grid.appendChild(cell);
   });
   $('btn-daily-claim').textContent = `🎁 Claim ${DAILY_REWARDS[idx]} coins!`;
@@ -2982,7 +2983,7 @@ function renderShop() {
     {
       emoji: '🛹', name: `Hoverboard ×${fmt(S.hoverboards)}`,
       desc: 'Press 🛹 in a run — crash-proof for 30s!',
-      label: `🪙 ${fmt(HOVERBOARD_PRICE)}`, cls: 'btn-yellow',
+      label: `${CICO} ${fmt(HOVERBOARD_PRICE)}`, cls: 'btn-yellow',
       buy: () => {
         if (S.coins < HOVERBOARD_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }
         S.coins -= HOVERBOARD_PRICE; S.hoverboards++; save();
@@ -2992,7 +2993,7 @@ function renderShop() {
     {
       emoji: '🎁', name: `Mystery Box ×${fmt(S.boxes)}`,
       desc: 'Random surprise: coins, boards… or the JACKPOT!',
-      label: `🪙 ${fmt(BOX_PRICE)}`, cls: 'btn-yellow',
+      label: `${CICO} ${fmt(BOX_PRICE)}`, cls: 'btn-yellow',
       buy: () => {
         if (S.coins < BOX_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }
         S.coins -= BOX_PRICE; S.boxes++; save();
@@ -3002,7 +3003,7 @@ function renderShop() {
     {
       emoji: '✨', name: 'Coin Doubler',
       desc: S.doubler ? 'Active — every coin counts twice, forever!' : 'Every coin counts TWICE — forever!',
-      label: S.doubler ? 'OWNED!' : `🪙 ${fmt(DOUBLER_PRICE)}`, cls: S.doubler ? 'btn-grey' : 'btn-yellow',
+      label: S.doubler ? 'OWNED!' : `${CICO} ${fmt(DOUBLER_PRICE)}`, cls: S.doubler ? 'btn-grey' : 'btn-yellow',
       disabled: S.doubler,
       buy: () => {
         if (S.coins < DOUBLER_PRICE) { toast(`Need ${fmt(DOUBLER_PRICE - S.coins)} more coins!`); return; }
@@ -3034,7 +3035,7 @@ function renderShop() {
       <div class="card-emoji">${p.icon}</div>
       <div class="card-info"><b>${p.name}</b><span>${p.desc}</span></div>
       <button class="btn ${active ? 'btn-grey' : owned ? 'btn-green' : 'btn-yellow'}">
-        ${active ? '✔ With you!' : owned ? 'Choose' : `🪙 ${fmt(p.price)}`}
+        ${active ? '✔ With you!' : owned ? 'Choose' : `${CICO} ${fmt(p.price)}`}
       </button>`;
     card.querySelector('button').addEventListener('click', () => {
       AudioSys.sfx('click');
@@ -3071,7 +3072,7 @@ function renderShop() {
         <div class="upg-pips">${pips}</div>
       </div>
       <button class="btn ${maxed ? 'btn-grey' : 'btn-yellow'}" ${maxed ? 'disabled' : ''}>
-        ${maxed ? 'MAX!' : `🪙 ${fmt(upgCost(lvl))}`}
+        ${maxed ? 'MAX!' : `${CICO} ${fmt(upgCost(lvl))}`}
       </button>`;
     if (!maxed) {
       card.querySelector('button').addEventListener('click', () => {
@@ -3105,7 +3106,7 @@ function renderChars() {
     const perk = document.createElement('div'); perk.className = 'perk'; perk.textContent = c.perk;
     const btn = document.createElement('button');
     btn.className = 'btn ' + (sel ? 'btn-grey' : owned ? 'btn-green' : 'btn-yellow');
-    btn.textContent = sel ? '✔ Playing!' : owned ? 'Choose' : `🪙 ${fmt(c.price)}`;
+    btn.innerHTML = sel ? '✔ Playing!' : owned ? 'Choose' : `${CICO} ${fmt(c.price)}`;
     btn.addEventListener('click', () => {
       AudioSys.sfx('click');
       if (sel) return;
@@ -3168,7 +3169,7 @@ function renderMissions() {
     card.innerHTML = `
       <div class="mission-top">
         <b>${done ? '✅' : '🎯'} ${missionText(m)}</b>
-        <button class="btn ${done ? 'btn-green' : 'btn-grey'}" ${done ? '' : 'disabled'}>🪙 ${m.reward}</button>
+        <button class="btn ${done ? 'btn-green' : 'btn-grey'}" ${done ? '' : 'disabled'}>${CICO} ${m.reward}</button>
       </div>
       <div class="mission-bar"><i style="width:${(m.prog / m.target) * 100}%"></i></div>
       <div class="mission-prog">${fmt(Math.min(m.prog, m.target))} / ${fmt(m.target)}</div>`;
