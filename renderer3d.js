@@ -236,12 +236,28 @@ window.R3D = (() => {
     return g;
   }
 
+  let COIN_GEO, COIN_RIM, COIN_FACE, COIN_STAR;
   function makeCoin() {
-    const geo = new THREE.CylinderGeometry(0.34, 0.34, 0.08, 18);
-    geo.rotateX(Math.PI / 2);
-    const m = new THREE.Mesh(geo, mat('#ffd23e', { metalness: 0.5, roughness: 0.25, emissive: '#aa7a00', emissiveIntensity: 0.55 }));
-    m.castShadow = true;
-    return m;
+    // bright two-tone gold coin: dark rim, glowing face, embossed star — pops on screen
+    if (!COIN_GEO) {
+      COIN_GEO = new THREE.CylinderGeometry(0.36, 0.36, 0.1, 20); COIN_GEO.rotateX(Math.PI / 2);
+      COIN_RIM = mat('#c8860a');
+      COIN_FACE = new THREE.MeshToonMaterial({ color: '#ffe14d', gradientMap: toonGrad(), emissive: new THREE.Color('#ffb300'), emissiveIntensity: 0.7 });
+      COIN_STAR = new THREE.MeshBasicMaterial({ color: '#fff6c8' });
+    }
+    const g = new THREE.Group();
+    const rim = new THREE.Mesh(COIN_GEO, COIN_RIM);
+    rim.castShadow = true;
+    g.add(rim);
+    for (const s of [0.051, -0.051]) {
+      const face = new THREE.Mesh(new THREE.CircleGeometry(0.3, 20), COIN_FACE);
+      face.position.z = s; face.rotation.y = s > 0 ? 0 : Math.PI;
+      g.add(face);
+      const star = new THREE.Mesh(new THREE.CircleGeometry(0.14, 5), COIN_STAR);
+      star.position.z = s * 1.04; star.rotation.z = 0.3; star.rotation.y = s > 0 ? 0 : Math.PI;
+      g.add(star);
+    }
+    return g;
   }
 
   function makeSprite(tex, s) {
@@ -862,7 +878,9 @@ window.R3D = (() => {
     };
     for (const m of ambient) scroll(m);
     for (const m of poles) scroll(m);
-    for (const m of gantries) scroll(m);
+    // gantries arch overhead, but hide them as they reach the camera so the
+    // big sign never slabs across the screen and covers the hero
+    for (const m of gantries) { scroll(m); m.visible = m.position.z < 5.0; }
     // clouds drift gently
     for (const c of clouds) {
       c.position.x += Math.sin(G.phase * 0.1) * 0; // anchored
