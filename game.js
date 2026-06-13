@@ -907,7 +907,7 @@ function startRun(dailyMode) {
     boardT: 0, themeIdx: 0, camX: 0, roll: 0,
     fever: 0, flashT: 0, nextMile: 500, queueJump: false,
     jumpDur: 0.62, jumpPow: 1, trail: [],
-    guardD: 0.95, guardLane: 0, heartT: 0, caught: false, stumbled: false,
+    guardD: 0.4, guardLane: 0, heartT: 0, caught: false, stumbled: false,
     rushAt: rand(800, 1100), rushWarn: 0, rushLeft: 0, rushTick: 0, rushDone: 0, rushLanes: [], tutorIdx: 0,
     revives: 0, invinc: 1.5, shake: 0, dieT: 0, phase: 0,
     runMissions: [], doubled: false, lastSafe: 1,
@@ -1197,10 +1197,10 @@ function update(dt) {
     }
   }
   // the guard: falls back while you run clean, lurks ready to pounce
-  G.guardD = Math.max(0, G.guardD - dt * 0.11);
-  if (G.guardD <= 0.55) G.stumbled = false; // outran him — safe again
+  G.guardD = Math.max(0, G.guardD - dt * 0.16);
+  if (G.guardD < 0.45) G.stumbled = false; // outran him — safe again
   G.guardLane = lerp(G.guardLane, G.laneF, Math.min(1, dt * 3.5));
-  if (G.guardD > 0.55) {
+  if (G.guardD > 0.45) {
     G.heartT -= dt;
     if (G.heartT <= 0) {
       G.heartT = lerp(0.45, 0.8, 1 - G.guardD); // heartbeat quickens as he closes in
@@ -1474,21 +1474,26 @@ function update(dt) {
         continue;
       }
       if (G.pu.shield > 0) { G.pu.shield = 0; rebuildPuChips(); smash(o); G.invinc = 1.2; continue; }
-      // hurdles & bars only make you STUMBLE… but stumble twice and he's got you
+      // hurdles, bars & drones make you STUMBLE — each one lets the guard surge
+      // closer. Let him close the gap and he GRABS you. Run clean to pull ahead.
       if (o.kind !== 'train') {
-        if (G.guardD > 0.55 && G.stumbled) { G.caught = true; crash(); break; }
         G.obstacles = G.obstacles.filter(x => x !== o);
+        G.guardD = Math.min(1.3, G.guardD + 0.5); // he lunges forward on every mistake
         G.stumbled = true;
-        G.guardD = 1;
         G.heartT = 0;
-        G.speed *= 0.5;
-        G.shake = 10;
+        G.speed *= 0.55;
+        G.shake = 11;
         G.combo = 0; G.comboT = 0;
-        G.invinc = 0.6;
         const pr = project(G.laneF, 0);
         burst(pr.x, pr.y - 30, '#ffb46b', 12);
+        if (G.guardD >= 1.0) { // caught up — GOTCHA!
+          G.caught = true;
+          crash();
+          break;
+        }
+        G.invinc = 0.5;
         addFloat('😱 STUMBLE!', W / 2, H * 0.3, '#ff9a3c', 34);
-        addFloat("HE'S RIGHT BEHIND YOU — RUN!!", W / 2, H * 0.37, '#ff5e5e', 22);
+        addFloat("RUN — HE'S RIGHT BEHIND YOU!", W / 2, H * 0.37, '#ff5e5e', 22);
         AudioSys.sfx('smash');
         if (navigator.vibrate) navigator.vibrate(90);
         continue;
@@ -1576,9 +1581,9 @@ function crash() {
   burst(pr.x, pr.y - 40, '#ff5e5e', 24);
   burst(pr.x, pr.y - 40, '#ffd23e', 14);
   if (G.caught) {
-    G.guardD = 1;
+    G.guardD = 1.35; // lunge right onto the player
     G.guardLane = G.laneF;
-    addFloat('😱 CAUGHT!!', W / 2, H * 0.32, '#ff5e5e', 44);
+    addFloat('😱 GOTCHA!', W / 2, H * 0.32, '#ff5e5e', 46);
   }
   if (navigator.vibrate) navigator.vibrate(120);
 }
@@ -1618,7 +1623,7 @@ function revive() {
   // sweep the danger zone so the comeback feels heroic
   G.obstacles = G.obstacles.filter(o => o.z > 420);
   G.state = 'playing';
-  G.guardD = 0.9; // he's right there — sprint!
+  G.guardD = 0.45; // he's close after a revive — sprint to shake him!
   G.caught = false;
   G.stumbled = false;
   AudioSys.sfx('revive');
@@ -2103,8 +2108,8 @@ function render() {
   }
 
   // DANGER: red pulse closing in from the edges while the guard is near
-  if (G.state === 'playing' && G.guardD > 0.55) {
-    const a = ((G.guardD - 0.55) / 0.45) * (0.22 + 0.13 * Math.sin(G.phase * 8));
+  if (G.state === 'playing' && G.guardD > 0.45) {
+    const a = ((G.guardD - 0.45) / 0.55) * (0.22 + 0.13 * Math.sin(G.phase * 8));
     const dg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.72);
     dg.addColorStop(0, 'rgba(255,30,30,0)');
     dg.addColorStop(1, `rgba(255,30,30,${a.toFixed(3)})`);
@@ -2888,8 +2893,8 @@ function render3D() {
   }
 
   // danger pulse while the guard is close
-  if (G.state === 'playing' && G.guardD > 0.55) {
-    const a = ((G.guardD - 0.55) / 0.45) * (0.22 + 0.13 * Math.sin(G.phase * 8));
+  if (G.state === 'playing' && G.guardD > 0.45) {
+    const a = ((G.guardD - 0.45) / 0.55) * (0.22 + 0.13 * Math.sin(G.phase * 8));
     const dg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.72);
     dg.addColorStop(0, 'rgba(255,30,30,0)');
     dg.addColorStop(1, `rgba(255,30,30,${a.toFixed(3)})`);

@@ -257,7 +257,31 @@ window.R3D = (() => {
       star.position.z = s * 1.04; star.rotation.z = 0.3; star.rotation.y = s > 0 ? 0 : Math.PI;
       g.add(star);
     }
+    // additive glow halo — fakes a bloom so coins read as bright and valuable
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+      map: glowTex('#ffe14d'), blending: THREE.AdditiveBlending, transparent: true,
+      depthWrite: false, opacity: 0.55,
+    }));
+    halo.scale.set(1.25, 1.25, 1);
+    g.add(halo);
     return g;
+  }
+  let GLOWTEX = {};
+  function glowTex(col) {
+    if (!GLOWTEX[col]) {
+      GLOWTEX[col] = spriteTex((x, s) => {
+        const grd = x.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+        grd.addColorStop(0, col);
+        grd.addColorStop(0.35, col.replace(')', ',0.5)').replace('rgb', 'rgba'));
+        grd.addColorStop(1, 'rgba(0,0,0,0)');
+        // col is a hex; convert via fillStyle trick
+        x.fillStyle = col; x.globalAlpha = 1;
+        x.beginPath(); x.arc(s/2, s/2, s*0.16, 0, 7); x.fill();
+        x.globalAlpha = 0.5; x.beginPath(); x.arc(s/2, s/2, s*0.3, 0, 7); x.fill();
+        x.globalAlpha = 0.2; x.beginPath(); x.arc(s/2, s/2, s*0.48, 0, 7); x.fill();
+      }, 64);
+    }
+    return GLOWTEX[col];
   }
 
   function makeSprite(tex, s) {
@@ -544,14 +568,19 @@ window.R3D = (() => {
     scene.fog = new THREE.Fog(SKY.getHex(), 21, 44);
     camera = new THREE.PerspectiveCamera(58, 1, 0.1, 90);
 
-    scene.add(new THREE.HemisphereLight(0xeaf2ff, 0x668855, 0.45));
-    const sun = new THREE.DirectionalLight(0xffeec8, 1.2);
-    sun.position.set(6, 12, 5);
+    scene.add(new THREE.HemisphereLight(0xdcefff, 0x5a7a4a, 0.5));
+    const sun = new THREE.DirectionalLight(0xfff0d0, 1.55);
+    sun.position.set(7, 13, 5);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(1024, 1024);
-    sun.shadow.camera.left = -9; sun.shadow.camera.right = 9;
-    sun.shadow.camera.top = 4; sun.shadow.camera.bottom = -30;
+    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
+    sun.shadow.camera.top = 5; sun.shadow.camera.bottom = -32;
+    sun.shadow.bias = -0.0004;
     scene.add(sun);
+    // cool rim/back light to separate characters from the background
+    const rim = new THREE.DirectionalLight(0x9fc4ff, 0.5);
+    rim.position.set(-6, 5, -8);
+    scene.add(rim);
 
     const grassMap = noiseTex(236, 205, 420);
     grassMap.repeat.set(70, 46);
