@@ -148,6 +148,11 @@ const MISSION_TPLS = [
 /* ============================== save state ============================== */
 const SAVE_KEY = 'railrascals_save_v1';
 
+// piggy bank: a slow-fill coin sink that pays back a satisfying lump sum
+const PIGGY_CAP = 2000;   // it can't hold more than this
+const PIGGY_RATE = 0.10;  // share of each run's coins that drops in
+const PIGGY_MIN = 250;    // you can't smash it until it holds at least this
+
 function defaultSave() {
   return {
     coins: 0,
@@ -173,6 +178,7 @@ function defaultSave() {
     activePet: '',
     dailyRun: { date: '', best: 0 },
     spin: { last: '' },
+    piggy: 0,
     stars: 0,
     roadClaimed: -1,
     seenHowto: false,
@@ -234,6 +240,7 @@ let S = (() => {
   if (!d.spin || typeof d.spin !== 'object') d.spin = fresh.spin;
   d.spin.last = typeof d.spin.last === 'string' ? d.spin.last : '';
   d.stars = num(d.stars, 0);
+  d.piggy = clamp(num(d.piggy, 0), 0, PIGGY_CAP);
   d.roadClaimed = (typeof d.roadClaimed === 'number' && d.roadClaimed >= -1) ? Math.floor(d.roadClaimed) : -1;
   return d;
 })();
@@ -601,6 +608,39 @@ function doSpin(consumeFree) {
   requestAnimationFrame(tick);
 }
 
+/* ============================== piggy bank ============================== */
+function piggyReady() { return S.piggy >= PIGGY_MIN; }
+function refreshPiggyBadge() { const b = $('piggy-badge'); if (b) b.classList.toggle('hidden', !piggyReady()); }
+function refreshPiggy() {
+  const amt = $('piggy-amt'); if (amt) amt.textContent = fmt(S.piggy);
+  const btn = $('btn-piggy'); if (btn) btn.classList.toggle('piggy-ready', piggyReady());
+  refreshPiggyBadge();
+}
+function openPiggy() {
+  $('piggy-total').textContent = fmt(S.piggy) + ' 🪙';
+  const ready = piggyReady();
+  $('btn-piggy-smash').classList.toggle('hidden', !ready);
+  $('btn-piggy-smash2x').classList.toggle('hidden', !ready);
+  $('piggy-hint').textContent = ready
+    ? 'Smash it to bank these coins!'
+    : `Fills up as you play — smash it at ${fmt(PIGGY_MIN)} 🪙.`;
+  $('mod-piggy').classList.remove('hidden');
+}
+function smashPiggy(double) {
+  if (!piggyReady()) return;
+  const base = S.piggy;
+  const total = double ? base * 2 : base;
+  S.piggy = 0;
+  S.coins += total;
+  save();
+  AudioSys.sfx('buy');
+  buzz([40, 30, 70]);
+  $('mod-piggy').classList.add('hidden');
+  toast(`🐷💥 +${fmt(total)} 🪙 from the Piggy Bank!`, true);
+  refreshBalances();
+  refreshPiggy();
+}
+
 /* ============================== audio ============================== */
 const AudioSys = {
   ctx: null,
@@ -719,6 +759,7 @@ function showScreen(name) {
     refreshMissionBadge();
     refreshSpinBadge();
     refreshRoadBadge();
+    refreshPiggy();
     $('daily-best').textContent = S.dailyRun.date === todayStr()
       ? `Best today: ${fmt(S.dailyRun.best)}`
       : 'NEW track today!';
@@ -1832,6 +1873,21 @@ function showContinue() {
   G.state = 'continue';
   const cost = reviveCost();
   $('continue-score').textContent = `Keep your ${fmt(G.score)} score alive!`;
+
+  // near-win framing — the strongest reason to revive is being *this close* to a
+  // personal best or to beating the next rival. Surface it loud.
+  const near = $('continue-near');
+  const sc = G.score;
+  let msg = '';
+  const nextRival = S.rivalsBeaten < RIVALS.length ? RIVALS[S.rivalsBeaten] : null;
+  if (S.best > 0 && sc >= S.best * 0.9 && sc < S.best) {
+    msg = `😱 SO close to a NEW BEST — just ${fmt(Math.ceil(S.best - sc + 1))} more!`;
+  } else if (nextRival && sc >= nextRival.score * 0.85 && sc < nextRival.score) {
+    msg = `😱 Almost beat ${nextRival.icon} ${nextRival.name} — don't stop now!`;
+  }
+  near.textContent = msg;
+  near.classList.toggle('hidden', !msg);
+
   $('revive-cost').textContent = fmt(cost);
   $('btn-revive-coins').disabled = false;
   $('btn-revive-coins').style.opacity = (S.coins + G.runCoins) >= cost ? '1' : '.5';
@@ -1892,6 +1948,10 @@ function gameOver() {
     }
   }
   S.coins += G.runCoins;
+  // drop a slice of this run's coins into the piggy bank (capped)
+  if (G.runCoins > 0 && S.piggy < PIGGY_CAP) {
+    S.piggy = Math.min(PIGGY_CAP, S.piggy + Math.round(G.runCoins * PIGGY_RATE));
+  }
   S.stats.runs++;
   missionEvent('runs', 1);
 
@@ -3545,6 +3605,10 @@ bind('btn-spin', openSpin);
 bind('btn-spin-go', () => doSpin(true));
 bind('btn-spin-ad', () => { openAd(() => doSpin(false)); });
 bind('btn-spin-close', () => $('mod-spin').classList.add('hidden'));
+bind('btn-piggy', openPiggy);
+bind('btn-piggy-smash', () => smashPiggy(false));
+bind('btn-piggy-smash2x', () => { openAd(() => smashPiggy(true)); });
+bind('btn-piggy-close', () => $('mod-piggy').classList.add('hidden'));
 bind('btn-box-open', doOpenBox);
 bind('btn-box-buy', () => {
   if (S.coins < BOX_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }

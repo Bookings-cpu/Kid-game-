@@ -149,6 +149,10 @@
     <svg class="ico"><use href="#i-trophy"/></svg> <span id="road-label">Star Road</span>
     <span id="road-badge" class="badge hidden">!</span>
   </button>
+  <button id="btn-piggy" class="btn btn-piggy">
+    🐷 <span id="piggy-label">Piggy Bank</span> · <b id="piggy-amt">0</b> 🪙
+    <span id="piggy-badge" class="badge hidden">!</span>
+  </button>
   <div class="menu-row">
     <button id="btn-shop" class="btn btn-round" title="Shop"><svg class="ico-btn"><use href="#i-cart"/></svg><small>Shop</small></button>
     <button id="btn-chars" class="btn btn-round" title="Heroes"><svg class="ico-btn"><use href="#i-hero"/></svg><small>Heroes</small></button>
@@ -270,6 +274,7 @@
 <div id="ovl-continue" class="overlay hidden">
   <div class="dialog">
     <h2>😮 Keep Running?</h2>
+    <div id="continue-near" class="continue-near hidden"></div>
     <div id="continue-score" class="continue-score"></div>
     <div id="continue-ring"><span id="continue-count">9</span></div>
     <button id="btn-revive-coins" class="btn btn-big btn-yellow">🪙 Continue (<span id="revive-cost">100</span>)</button>
@@ -356,6 +361,19 @@
     <button id="btn-spin-go" class="btn btn-big btn-yellow">SPIN!</button>
     <button id="btn-spin-ad" class="btn btn-big btn-green hidden">🎬 Extra spin</button>
     <button id="btn-spin-close" class="btn btn-link">Close</button>
+  </div>
+</div>
+
+<!-- ================= PIGGY BANK ================= -->
+<div id="mod-piggy" class="overlay hidden">
+  <div class="dialog">
+    <h2>🐷 Piggy Bank</h2>
+    <div id="piggy-art" class="piggy-art">🐷</div>
+    <div id="piggy-total" class="piggy-total">0 🪙</div>
+    <div id="piggy-hint" class="piggy-hint">Every run drops 10% of your coins in here.</div>
+    <button id="btn-piggy-smash" class="btn btn-big btn-yellow">💥 Smash it open!</button>
+    <button id="btn-piggy-smash2x" class="btn btn-big btn-green hidden">🎬 Smash for DOUBLE</button>
+    <button id="btn-piggy-close" class="btn btn-link">Close</button>
   </div>
 </div>
 

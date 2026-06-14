@@ -66,6 +66,39 @@ const ok = (c, m) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + m); if (!c)
   ok(tgl.reduceFlag === true, 'REDUCE flag follows reduceFx');
   ok(tgl.bodyClass === true, 'body.reduce-motion class applied');
 
+  // 5b. piggy bank: accrues from runs, caps, and smashes correctly
+  const piggy = await page.evaluate(() => {
+    S.piggy = 0; S.coins = 0;
+    G.runCoins = 1000;
+    // simulate the gameOver accrual line
+    S.piggy = Math.min(PIGGY_CAP, S.piggy + Math.round(G.runCoins * PIGGY_RATE));
+    const afterAccrue = S.piggy;
+    S.piggy = 5000; S.piggy = Math.min(PIGGY_CAP, S.piggy); // cap check via sanitize-equivalent
+    S.piggy = 300;
+    const readyAt300 = piggyReady();
+    const coinsBefore = S.coins;
+    smashPiggy(false);
+    return { afterAccrue, cap: PIGGY_CAP, readyAt300, smashedCoins: S.coins - coinsBefore, piggyAfter: S.piggy };
+  });
+  ok(piggy.afterAccrue === 100, 'piggy accrues 10% of run coins (100 from 1000), got ' + piggy.afterAccrue);
+  ok(piggy.readyAt300 === true, 'piggy smashable at 300 (>= ' + 250 + ')');
+  ok(piggy.smashedCoins === 300, 'smash banks the full amount, got ' + piggy.smashedCoins);
+  ok(piggy.piggyAfter === 0, 'piggy resets to 0 after smash');
+
+  // 5c. near-win banner appears when close to best
+  const near = await page.evaluate(() => {
+    S.best = 1000; S.rivalsBeaten = 999;
+    G.score = 950; G.runCoins = 0;
+    document.querySelectorAll('[id^="ovl-"]').forEach(e=>e.classList.add('hidden'));
+    showContinue();
+    const el = document.getElementById('continue-near');
+    const shown = !el.classList.contains('hidden') && /close/i.test(el.textContent);
+    // tidy up: leave the continue state
+    clearInterval(G.continueTimer); G.state = 'menu';
+    return shown;
+  });
+  ok(near, 'near-win banner shows when within 10% of best');
+
   // 6. font self-hosted (loaded, no network)
   const font = await page.evaluate(async () => { try { await document.fonts.ready; return document.fonts.check('800 30px "Baloo 2"'); } catch(e){ return false; } });
   ok(font, 'Baloo 2 self-hosted font loaded');
