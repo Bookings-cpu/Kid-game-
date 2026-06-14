@@ -1852,8 +1852,11 @@ function tickAnnounce(dt) {
   if (G.annT > 0) G.annT -= dt;
   if (G.annT <= 0 && G.annQ.length) {
     const a = G.annQ.shift();
-    G.floats.push({ text: a.text, x: W / 2, y: H * 0.3, color: a.color, life: 1.5, size: a.size });
-    G.annT = 0.95;
+    // never let two big centre banners share the screen — clear any still-alive
+    // one, and keep the lifetime within the gate so they can't overlap into mush
+    G.floats = G.floats.filter(f => f.size < 26);
+    G.floats.push({ text: a.text, x: W / 2, y: H * 0.3, color: a.color, life: 1.25, size: a.size });
+    G.annT = 1.4;
   }
 }
 
@@ -1901,7 +1904,8 @@ function showContinue() {
 
   $('revive-cost').textContent = fmt(cost);
   $('btn-revive-coins').disabled = false;
-  $('btn-revive-coins').style.opacity = (S.coins + G.runCoins) >= cost ? '1' : '.5';
+  // clean greyed look when unaffordable (tapping still nudges "watch an ad")
+  $('btn-revive-coins').classList.toggle('cant-afford', (S.coins + G.runCoins) < cost);
   $('ovl-continue').classList.remove('hidden');
   startContinueCountdown();
 }

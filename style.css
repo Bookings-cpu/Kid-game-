@@ -497,3 +497,21 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
   animation-iteration-count:1 !important;
   transition-duration:0.001ms !important;
 }
+
+/* A gold action that the player can't currently afford reads as a clean grey
+   "disabled" state instead of muddy half-opacity gold. */
+.btn.cant-afford {
+  background:linear-gradient(180deg,#9aa3b5,#6b7484);
+  color:#eef1f6; box-shadow:0 4px 0 #4a5160;
+}
+
+/* ============== tablet / large screens ============== */
+/* On wide screens the phone-width column left big empty side bands. Widen the
+   centered column and panels so it fills an iPad nicely. */
+@media (min-width:700px) {
+  .menu-top, .level-row { max-width:540px; }
+  .wordmark { width:min(64vw,420px); }
+  .btn-big, .menu-cta-row, .btn-road, .btn-piggy { width:min(70vw,480px); }
+  .panel-head, .panel-body { max-width:660px; }
+  .dialog { width:min(80vw,460px); }
+}

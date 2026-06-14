@@ -514,6 +514,24 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
   transition-duration:0.001ms !important;
 }
 
+/* A gold action that the player can't currently afford reads as a clean grey
+   "disabled" state instead of muddy half-opacity gold. */
+.btn.cant-afford {
+  background:linear-gradient(180deg,#9aa3b5,#6b7484);
+  color:#eef1f6; box-shadow:0 4px 0 #4a5160;
+}
+
+/* ============== tablet / large screens ============== */
+/* On wide screens the phone-width column left big empty side bands. Widen the
+   centered column and panels so it fills an iPad nicely. */
+@media (min-width:700px) {
+  .menu-top, .level-row { max-width:540px; }
+  .wordmark { width:min(64vw,420px); }
+  .btn-big, .menu-cta-row, .btn-road, .btn-piggy { width:min(70vw,480px); }
+  .panel-head, .panel-body { max-width:660px; }
+  .dialog { width:min(80vw,460px); }
+}
+
 </style>
 </head>
 <body>
@@ -610,7 +628,7 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
     <span id="menu-level" class="pill"><svg class="ico"><use href="#i-star"/></svg> Lv 1</span>
     <div class="xp-bar"><i id="xp-fill"></i></div>
   </div>
-  <svg class="wordmark" viewBox="-10 0 360 170" role="img" aria-label="Rail Rascals">
+  <svg class="wordmark" viewBox="-10 0 360 178" role="img" aria-label="Rail Rascals">
     <defs>
       <linearGradient id="wm-fill" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#fff0b0"/><stop offset="0.5" stop-color="#ffce3a"/><stop offset="1" stop-color="#ff8c1a"/>
@@ -628,7 +646,7 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
       <text x="168" y="134" font-size="64" fill="url(#wm-fill)" stroke="#8a3a00" stroke-width="6" paint-order="stroke" stroke-linejoin="round">RASCALS!</text>
     </g>
     <!-- rail-track motif underline -->
-    <g opacity="0.92">
+    <g opacity="0.92" transform="translate(0,6)">
       <rect x="40" y="150" width="260" height="3.4" rx="1.7" fill="url(#wm-rail)"/>
       <rect x="40" y="159" width="260" height="3.4" rx="1.7" fill="url(#wm-rail)"/>
       <g fill="#9b7a52">
@@ -3906,8 +3924,11 @@ function tickAnnounce(dt) {
   if (G.annT > 0) G.annT -= dt;
   if (G.annT <= 0 && G.annQ.length) {
     const a = G.annQ.shift();
-    G.floats.push({ text: a.text, x: W / 2, y: H * 0.3, color: a.color, life: 1.5, size: a.size });
-    G.annT = 0.95;
+    // never let two big centre banners share the screen — clear any still-alive
+    // one, and keep the lifetime within the gate so they can't overlap into mush
+    G.floats = G.floats.filter(f => f.size < 26);
+    G.floats.push({ text: a.text, x: W / 2, y: H * 0.3, color: a.color, life: 1.25, size: a.size });
+    G.annT = 1.4;
   }
 }
 
@@ -3955,7 +3976,8 @@ function showContinue() {
 
   $('revive-cost').textContent = fmt(cost);
   $('btn-revive-coins').disabled = false;
-  $('btn-revive-coins').style.opacity = (S.coins + G.runCoins) >= cost ? '1' : '.5';
+  // clean greyed look when unaffordable (tapping still nudges "watch an ad")
+  $('btn-revive-coins').classList.toggle('cant-afford', (S.coins + G.runCoins) < cost);
   $('ovl-continue').classList.remove('hidden');
   startContinueCountdown();
 }
