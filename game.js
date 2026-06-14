@@ -103,8 +103,10 @@ const THEMES = [
   { name: '❄️ Snowy Peaks',   ground: ['#eef3fa', '#c4d3e6'], groundLo: ['#b9c9de', '#93a8c4'] },
   { name: '🍭 Candy Land',    ground: ['#ffb9dc', '#ff9ccc'], groundLo: ['#ff8ac2', '#f06aab'] },
   { name: '🌋 Volcano Valley', ground: ['#6a4a44', '#553733'], groundLo: ['#4a322e', '#35211e'] },
+  { name: '🌴 Jungle Jam',    ground: ['#5fb86a', '#3f9450'], groundLo: ['#347d44', '#235e30'] },
+  { name: '🌙 Moon Base',     ground: ['#8a8fa6', '#6c7188'], groundLo: ['#565b73', '#3d4257'] },
 ];
-const SOUV_ICONS = ['🌼', '🌵', '❄️', '🍭', '🌋'];
+const SOUV_ICONS = ['🌼', '🌵', '❄️', '🍭', '🌋', '🌴', '🌙'];
 
 // per-biome atmosphere for the 3D renderer: sun colour/intensity, ambient tint,
 // fog colour tint + near/far. Gives each world its own light and air.
@@ -114,6 +116,8 @@ const ATMOS = [
   { sun: '#eaf3ff', sunI: 1.35, amb: '#cfe0ff', ambI: 0.62, fog: '#dce8fb', near: 17, far: 40 }, // Snow: cold, bright
   { sun: '#ffe2f2', sunI: 1.55, amb: '#ffd6ec', ambI: 0.58, fog: '#ffd0ea', near: 20, far: 44 }, // Candy: sweet glow
   { sun: '#ffcaa0', sunI: 1.45, amb: '#c89a86', ambI: 0.42, fog: '#7a3a26', near: 14, far: 34 }, // Volcano: ember, smoky
+  { sun: '#eaffd0', sunI: 1.40, amb: '#bfe6c0', ambI: 0.52, fog: '#b8e0a8', near: 15, far: 36 }, // Jungle: green humid haze
+  { sun: '#cdd6ff', sunI: 1.25, amb: '#9aa6d8', ambI: 0.45, fog: '#2a2f55', near: 20, far: 48 }, // Moon: cold blue starlight
 ];
 function lerpAtmos(a, b, t) {
   return {
@@ -1064,7 +1068,7 @@ function project(laneF, z) {
 // sky palettes that slowly cycle as you run (day → sunset → night → dawn → embers)
 const SKIES = [
   ['#4aa9ff', '#bfe6ff'], ['#ff9a5c', '#ffd9a0'], ['#1b1464', '#4a3f9e'], ['#ff7eb3', '#ffd1dc'],
-  ['#3a1f24', '#8a3a26'],
+  ['#3a1f24', '#8a3a26'], ['#2e7d4f', '#aee89a'], ['#0a0a2e', '#2a2f66'],
 ];
 const STARS = Array.from({ length: 42 }, () => [Math.random(), Math.random() * 0.9, rand(0.3, 1)]);
 const CLOUDS = [[0.15, 0.3, 0.22, 0.8], [0.55, 0.18, 0.3, 0.5], [0.85, 0.42, 0.18, 1.1], [0.35, 0.55, 0.14, 1.5]];
@@ -1245,6 +1249,8 @@ const THEME_DECOR = [
   ['pine', 'snowman', 'pine'],
   ['lolly', 'cane', 'lolly'],
   ['lavarock', 'geyser', 'lavarock'],
+  ['palm', 'bush', 'palm'],
+  ['crystal', 'crater', 'crystal'],
 ];
 
 function spawnDecor() {
@@ -3019,6 +3025,8 @@ const AMBIENT_CFG = [
   { rate: 2.4, vy: [35, 75],  vx: [-25, 25], size: [2, 4.8], cols: ['#ffffff', '#eaf3ff'], shape: 'dot' },
   { rate: 1.4, vy: [-12, 12], vx: [-14, 14], size: [1.5, 3.5], cols: ['#fff', '#ffd6ec', '#b8f0ff'], shape: 'spark' },
   { rate: 1.9, vy: [-70, -35],vx: [-18, 18], size: [1.5, 4], cols: ['#ff9a3c', '#ffce3a', '#ff5e5e'], shape: 'ember' },
+  { rate: 0.8, vy: [-8, 8],   vx: [-12, 12], size: [1.5, 3], cols: ['#fff7a0', '#b8f547', '#7fe0a0'], shape: 'ember' }, // Jungle: fireflies
+  { rate: 0.9, vy: [-6, 6],   vx: [-10, 10], size: [1, 2.6], cols: ['#ffffff', '#cdd6ff', '#9aa6ff'], shape: 'spark' }, // Moon: stardust
 ];
 let ambientFX = [];
 function updateAmbientFX(theme, ft) {

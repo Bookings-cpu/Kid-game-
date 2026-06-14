@@ -378,6 +378,40 @@ window.R3D = (() => {
         pop.rotation.x = Math.PI / 2;
         break;
       }
+      case 'palm': {
+        const trunk = add(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.16, 1.7, 7), cmat('#9a6b3a')), 0, 0.85, 0);
+        trunk.rotation.z = 0.12;
+        for (let i = 0; i < 6; i++) {
+          const fr = add(new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.7, 3, 6), cmat(i % 2 ? '#2e9e44' : '#37b052')), 0.15, 1.7, 0);
+          fr.rotation.z = Math.PI / 2 - 0.5; fr.rotation.y = (i / 6) * Math.PI * 2;
+          fr.position.x = Math.cos(i / 6 * 6.28) * 0.4; fr.position.z = Math.sin(i / 6 * 6.28) * 0.4;
+        }
+        add(new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 6), cmat('#a06a2a')), 0.1, 1.65, 0.1);
+        break;
+      }
+      case 'bush': {
+        const b1 = add(new THREE.Mesh(new THREE.SphereGeometry(0.42, 10, 8), cmat('#2e9e44')), 0, 0.32, 0); b1.scale.y = 0.8;
+        add(new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), cmat('#37b052')), -0.3, 0.26, 0.1);
+        add(new THREE.Mesh(new THREE.SphereGeometry(0.3, 10, 8), cmat('#46c060')), 0.3, 0.26, -0.1);
+        add(new THREE.Mesh(new THREE.SphereGeometry(0.09, 6, 6), cmat('#ff6ec4')), 0.15, 0.55, 0.25);
+        break;
+      }
+      case 'crystal': {
+        const cr = add(new THREE.Mesh(new THREE.ConeGeometry(0.22, 1.1, 5),
+          mat('#9ad6ff', { emissive: '#3a8fd0', emissiveIntensity: 0.7 })), 0, 0.55, 0);
+        cr.rotation.y = 0.4;
+        add(new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.6, 5),
+          mat('#cdeaff', { emissive: '#4aa0e0', emissiveIntensity: 0.6 })), 0.28, 0.3, 0.1);
+        add(new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.45, 5),
+          mat('#b8e0ff', { emissive: '#3a8fd0', emissiveIntensity: 0.6 })), -0.26, 0.22, -0.1);
+        break;
+      }
+      case 'crater': {
+        const ring = add(new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.16, 8, 16), cmat('#6c7188')), 0, 0.1, 0);
+        ring.rotation.x = Math.PI / 2; ring.scale.y = 0.5;
+        add(new THREE.Mesh(new THREE.CircleGeometry(0.42, 16), cmat('#4d5266')), 0, 0.04, 0).rotation.x = -Math.PI / 2;
+        break;
+      }
       case 'lavarock': {
         const lr = add(new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 6), cmat('#3a2c28')), 0, 0.24, 0);
         lr.scale.set(1.25, 0.6, 1);
@@ -746,6 +780,8 @@ window.R3D = (() => {
       ['pine', 'snowman', 'pine', 'pine', 'rock'],
       ['lolly', 'cane', 'lolly', 'cane', 'lolly'],
       ['lavarock', 'geyser', 'lavarock', 'lavarock', 'geyser'],
+      ['palm', 'bush', 'palm', 'palm', 'bush'],
+      ['crystal', 'crater', 'crystal', 'rock', 'crystal'],
     ];
     R3D_THEME_COUNT = AMBIENT_THEMES.length;
     for (const side of [-1, 1]) {
