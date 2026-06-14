@@ -292,6 +292,10 @@ button { font-family:inherit; }
   display:flex; align-items:center; justify-content:center; padding:20px;
   backdrop-filter:blur(3px);
 }
+/* the rewarded-ad overlay can be launched FROM another overlay (Piggy Bank,
+   Lucky Spin). It must always sit on top, or the "claim reward" button ends up
+   painted behind the launching dialog and becomes untappable. */
+#mod-ad { z-index:60; }
 .dialog {
   background:linear-gradient(180deg,#3d2a96,#2b1a6e); border-radius:26px; padding:26px 22px;
   width:min(92vw,400px); max-height:92vh; overflow-y:auto; text-align:center;

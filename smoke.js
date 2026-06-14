@@ -99,6 +99,23 @@ const ok = (c, m) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + m); if (!c)
   });
   ok(near, 'near-win banner shows when within 10% of best');
 
+  // 5d. rewarded-ad overlay must stack ABOVE the modal that launched it
+  const adStack = await page.evaluate(() => {
+    document.querySelectorAll('[id^="mod-"],[id^="ovl-"]').forEach(e => e.classList.add('hidden'));
+    S.piggy = 800;
+    openPiggy();
+    document.getElementById('btn-piggy-smash2x').click(); // launches the ad
+    const z = (id) => parseInt(getComputedStyle(document.getElementById(id)).zIndex, 10) || 0;
+    const adZ = z('mod-ad'), piggyZ = z('mod-piggy');
+    const adVisible = !document.getElementById('mod-ad').classList.contains('hidden');
+    // tidy up
+    if (typeof closeAd === 'function') closeAd(false);
+    document.querySelectorAll('[id^="mod-"]').forEach(e => e.classList.add('hidden'));
+    return { adZ, piggyZ, adVisible };
+  });
+  ok(adStack.adVisible, 'ad overlay opens from the piggy modal');
+  ok(adStack.adZ > adStack.piggyZ, `ad overlay stacks above the launching modal (ad z=${adStack.adZ} > piggy z=${adStack.piggyZ})`);
+
   // 6. font self-hosted (loaded, no network)
   const font = await page.evaluate(async () => { try { await document.fonts.ready; return document.fonts.check('800 30px "Baloo 2"'); } catch(e){ return false; } });
   ok(font, 'Baloo 2 self-hosted font loaded');
