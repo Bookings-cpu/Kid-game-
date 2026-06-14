@@ -1,4 +1,13 @@
 /* ============== Rail Rascals! — kid-friendly UI ============== */
+/* Self-hosted display font — no third-party calls (COPPA/GDPR-safe) + works
+   fully offline. Variable weight covers the 400/600/800 the UI uses. */
+@font-face {
+  font-family: "Baloo 2";
+  font-style: normal;
+  font-weight: 400 800;
+  font-display: swap;
+  src: url("fonts/baloo2-latin.woff2") format("woff2");
+}
 /* Design tokens — canonical source documented in game-art/tokens.css */
 :root {
   --rr-brand:#3e8ef7; --rr-brand-2:#6cc4ff;
@@ -188,8 +197,8 @@ button { font-family:inherit; }
 }
 #hud button { pointer-events:auto; }
 .hud-center { text-align:center; }
-#hud-score { font-size:30px; font-weight:900; text-shadow:0 3px 0 rgba(0,0,0,.4); }
-#hud-mult { font-size:18px; font-weight:900; color:#ffd23e; text-shadow:0 2px 0 rgba(0,0,0,.4); animation:pulse 1s infinite; }
+#hud-score { font-size:30px; font-weight:900; text-shadow:0 3px 0 rgba(0,0,0,.4); -webkit-text-stroke:1.4px rgba(20,14,40,.55); paint-order:stroke fill; }
+#hud-mult { font-size:18px; font-weight:900; color:#ffd23e; text-shadow:0 2px 0 rgba(0,0,0,.4); -webkit-text-stroke:1.1px rgba(70,40,0,.5); paint-order:stroke fill; animation:pulse 1s infinite; }
 .hud-coins { font-size:17px; }
 .bump { animation:coinbump .25s ease-out; }
 @keyframes coinbump { 0% { transform:scale(1); } 40% { transform:scale(1.25); } 100% { transform:scale(1); } }
@@ -426,4 +435,43 @@ button { font-family:inherit; }
   .section-title { font-size:16px; }
   .hunt-tile { width:32px; height:38px; font-size:18px; }
   #over-stars { font-size:30px; }
+}
+
+/* ============== accessibility ============== */
+
+/* Keyboard focus ring — visible only for keyboard users, never on touch/mouse */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline:3px solid #ffe14d;
+  outline-offset:2px;
+  border-radius:6px;
+}
+
+/* Minimum 44×44 touch targets (WCAG 2.5.5) for the small chrome buttons */
+.btn-link, .btn-back, .btn-hud, .pill-btn, .btn-round, #btn-pause, #btn-board {
+  min-height:44px;
+}
+.btn-link, .btn-back, .btn-hud, .pill-btn {
+  min-width:44px;
+  display:inline-flex; align-items:center; justify-content:center;
+}
+
+/* Respect the OS "reduce motion" setting — kill non-essential animation so the
+   game is comfortable for motion-sensitive players. JS also reads this (REDUCE)
+   to suppress screen shake, full-screen flashes and confetti. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration:0.001ms !important;
+    animation-iteration-count:1 !important;
+    transition-duration:0.001ms !important;
+    scroll-behavior:auto !important;
+  }
+}
+/* In-app "Reduced effects" toggle mirrors the OS setting */
+body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after {
+  animation-duration:0.001ms !important;
+  animation-iteration-count:1 !important;
+  transition-duration:0.001ms !important;
 }

@@ -1,6 +1,10 @@
-/* Rail Rascals! service worker — cache everything so the game works offline */
-const CACHE = 'railrascals-v2';
-const ASSETS = ['./', 'index.html', 'style.css', 'game.js', 'three.min.js', 'renderer3d.js', 'manifest.json', 'icon-192.png', 'icon-512.png'];
+/* Rail Rascals! service worker — offline cache.
+   HTML is network-first (so updates land), everything else cache-first. */
+const CACHE = 'railrascals-v3';
+const ASSETS = [
+  './', 'index.html', 'style.css', 'game.js', 'three.min.js', 'renderer3d.js',
+  'manifest.json', 'icon-192.png', 'icon-512.png', 'fonts/baloo2-latin.woff2',
+];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(ASSETS)).then(() => self.skipWaiting()));
@@ -15,5 +19,25 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  e.respondWith(caches.match(e.request).then((r) => r || fetch(e.request)));
+  const req = e.request;
+  if (req.method !== 'GET') return;
+  const isHTML = req.mode === 'navigate' ||
+    (req.headers.get('accept') || '').includes('text/html');
+
+  if (isHTML) {
+    // network-first: always try for the freshest page, fall back to cache offline
+    e.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match(req).then((r) => r || caches.match('index.html')))
+    );
+    return;
+  }
+
+  // static assets: cache-first for instant loads
+  e.respondWith(caches.match(req).then((r) => r || fetch(req)));
 });

@@ -2,16 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="description" content="Rail Rascals! - a super fun endless runner game for kids">
 <meta name="theme-color" content="#3e8ef7">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Rail Rascals! 🚂</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png">
 <link rel="apple-touch-icon" href="icon-192.png">
@@ -104,14 +101,14 @@
   </div>
   <div class="menu-top">
     <div class="pill coin-pill"><svg class="ico"><use href="#i-coin"/></svg> <span id="menu-coins">0</span></div>
-    <button id="btn-boxes" class="pill pill-btn"><svg class="ico"><use href="#i-gift"/></svg> <span id="menu-boxes">0</span></button>
+    <button id="btn-boxes" class="pill pill-btn" aria-label="Open mystery boxes"><svg class="ico"><use href="#i-gift"/></svg> <span id="menu-boxes">0</span></button>
     <div class="pill"><svg class="ico"><use href="#i-trophy"/></svg> <span id="menu-best">0</span></div>
   </div>
   <div class="level-row">
     <span id="menu-level" class="pill"><svg class="ico"><use href="#i-star"/></svg> Lv 1</span>
     <div class="xp-bar"><i id="xp-fill"></i></div>
   </div>
-  <svg class="wordmark" viewBox="0 0 340 170" role="img" aria-label="Rail Rascals">
+  <svg class="wordmark" viewBox="-10 0 360 170" role="img" aria-label="Rail Rascals">
     <defs>
       <linearGradient id="wm-fill" x1="0" y1="0" x2="0" y2="1">
         <stop offset="0" stop-color="#fff0b0"/><stop offset="0.5" stop-color="#ffce3a"/><stop offset="1" stop-color="#ff8c1a"/>
@@ -123,10 +120,10 @@
     <g font-family="'Baloo 2','Comic Sans MS',sans-serif" font-weight="800" text-anchor="middle" letter-spacing="2">
       <!-- extrude / drop shadow -->
       <text x="172" y="64" font-size="62" fill="#7a3400">RAIL</text>
-      <text x="170" y="138" font-size="74" fill="#7a3400">RASCALS!</text>
+      <text x="170" y="138" font-size="64" fill="#7a3400">RASCALS!</text>
       <!-- main faces with dark outline behind fill -->
       <text x="170" y="60" font-size="62" fill="url(#wm-fill)" stroke="#8a3a00" stroke-width="6" paint-order="stroke" stroke-linejoin="round">RAIL</text>
-      <text x="168" y="134" font-size="74" fill="url(#wm-fill)" stroke="#8a3a00" stroke-width="6" paint-order="stroke" stroke-linejoin="round">RASCALS!</text>
+      <text x="168" y="134" font-size="64" fill="url(#wm-fill)" stroke="#8a3a00" stroke-width="6" paint-order="stroke" stroke-linejoin="round">RASCALS!</text>
     </g>
     <!-- rail-track motif underline -->
     <g opacity="0.92">
@@ -166,21 +163,21 @@
   <canvas id="game-canvas"></canvas>
   <canvas id="fx-canvas"></canvas>
   <div id="hud">
-    <button id="btn-pause" class="btn btn-hud"><svg class="ico-hud"><use href="#i-pause"/></svg></button>
+    <button id="btn-pause" class="btn btn-hud" aria-label="Pause game"><svg class="ico-hud"><use href="#i-pause"/></svg></button>
     <div class="hud-center">
       <div id="hud-score">0</div>
       <div id="hud-mult" class="hidden">x2</div>
     </div>
     <div class="pill coin-pill hud-coins"><svg class="ico"><use href="#i-coin"/></svg> <span id="hud-coins">0</span></div>
     <div id="hud-powerups"></div>
-    <button id="btn-board" class="btn btn-board hidden"><svg class="ico-hud"><use href="#i-board"/></svg> <span id="board-count"></span></button>
+    <button id="btn-board" class="btn btn-board hidden" aria-label="Use hoverboard"><svg class="ico-hud"><use href="#i-board"/></svg> <span id="board-count"></span></button>
   </div>
 </div>
 
 <!-- ================= SHOP ================= -->
 <div id="scr-shop" class="screen panel-screen hidden">
   <div class="panel-head">
-    <button class="btn btn-back" data-to="menu"><svg class="ico-hud"><use href="#i-back"/></svg></button>
+    <button class="btn btn-back" data-to="menu" aria-label="Back to menu"><svg class="ico-hud"><use href="#i-back"/></svg></button>
     <h2><svg class="ico-ttl"><use href="#i-cart"/></svg> Shop</h2>
     <div class="pill coin-pill"><svg class="ico"><use href="#i-coin"/></svg> <span id="shop-coins">0</span></div>
   </div>
@@ -219,7 +216,7 @@
 <!-- ================= HEROES ================= -->
 <div id="scr-chars" class="screen panel-screen hidden">
   <div class="panel-head">
-    <button class="btn btn-back" data-to="menu"><svg class="ico-hud"><use href="#i-back"/></svg></button>
+    <button class="btn btn-back" data-to="menu" aria-label="Back to menu"><svg class="ico-hud"><use href="#i-back"/></svg></button>
     <h2><svg class="ico-ttl"><use href="#i-hero"/></svg> Heroes</h2>
     <div class="pill coin-pill"><svg class="ico"><use href="#i-coin"/></svg> <span id="chars-coins">0</span></div>
   </div>
@@ -229,7 +226,7 @@
 <!-- ================= MISSIONS ================= -->
 <div id="scr-missions" class="screen panel-screen hidden">
   <div class="panel-head">
-    <button class="btn btn-back" data-to="menu"><svg class="ico-hud"><use href="#i-back"/></svg></button>
+    <button class="btn btn-back" data-to="menu" aria-label="Back to menu"><svg class="ico-hud"><use href="#i-back"/></svg></button>
     <h2><svg class="ico-ttl"><use href="#i-target"/></svg> Missions</h2>
     <div class="pill coin-pill"><svg class="ico"><use href="#i-coin"/></svg> <span id="missions-coins">0</span></div>
   </div>
@@ -244,12 +241,14 @@
 <!-- ================= SETTINGS ================= -->
 <div id="scr-settings" class="screen panel-screen hidden">
   <div class="panel-head">
-    <button class="btn btn-back" data-to="menu"><svg class="ico-hud"><use href="#i-back"/></svg></button>
+    <button class="btn btn-back" data-to="menu" aria-label="Back to menu"><svg class="ico-hud"><use href="#i-back"/></svg></button>
     <h2><svg class="ico-ttl"><use href="#i-gear"/></svg> Settings</h2><div></div>
   </div>
   <div class="panel-body">
     <div class="card"><div class="card-info"><b>🔔 Sound effects</b></div><button id="tgl-sound" class="btn btn-blue">On</button></div>
     <div class="card"><div class="card-info"><b>🎵 Music</b></div><button id="tgl-music" class="btn btn-blue">On</button></div>
+    <div class="card"><div class="card-info"><b>📳 Vibration</b></div><button id="tgl-haptics" class="btn btn-blue">On</button></div>
+    <div class="card"><div class="card-info"><b>✨ Reduced effects</b><span>Less shake &amp; flashing</span></div><button id="tgl-reduce" class="btn btn-grey">Off</button></div>
     <h3 class="section-title">📊 Your Stats</h3>
     <div id="stats-box" class="card stats-card"></div>
     <h3 class="section-title">⚠️ Danger Zone</h3>

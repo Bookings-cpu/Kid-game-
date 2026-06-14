@@ -111,13 +111,13 @@ const SOUV_ICONS = ['🌼', '🌵', '❄️', '🍭', '🌋', '🌴', '🌙'];
 // per-biome atmosphere for the 3D renderer: sun colour/intensity, ambient tint,
 // fog colour tint + near/far. Gives each world its own light and air.
 const ATMOS = [
-  { sun: '#fff0d0', sunI: 1.55, amb: '#dcefff', ambI: 0.50, fog: '#cfe7ff', near: 22, far: 46 }, // Meadows: fresh
-  { sun: '#ffe6ad', sunI: 1.70, amb: '#ffe9cf', ambI: 0.55, fog: '#f3dca6', near: 16, far: 38 }, // Desert: hot, sandy haze
-  { sun: '#eaf3ff', sunI: 1.35, amb: '#cfe0ff', ambI: 0.62, fog: '#dce8fb', near: 17, far: 40 }, // Snow: cold, bright
-  { sun: '#ffe2f2', sunI: 1.55, amb: '#ffd6ec', ambI: 0.58, fog: '#ffd0ea', near: 20, far: 44 }, // Candy: sweet glow
-  { sun: '#ffcaa0', sunI: 1.45, amb: '#c89a86', ambI: 0.42, fog: '#7a3a26', near: 14, far: 34 }, // Volcano: ember, smoky
-  { sun: '#eaffd0', sunI: 1.40, amb: '#bfe6c0', ambI: 0.52, fog: '#b8e0a8', near: 15, far: 36 }, // Jungle: green humid haze
-  { sun: '#cdd6ff', sunI: 1.25, amb: '#9aa6d8', ambI: 0.45, fog: '#2a2f55', near: 20, far: 48 }, // Moon: cold blue starlight
+  { sun: '#fff0d0', sunI: 1.55, amb: '#dcefff', ambI: 0.50, fog: '#cfe7ff', near: 22, far: 52 }, // Meadows: fresh
+  { sun: '#ffe6ad', sunI: 1.70, amb: '#ffe9cf', ambI: 0.55, fog: '#f3dca6', near: 18, far: 44 }, // Desert: hot, sandy haze
+  { sun: '#eaf3ff', sunI: 1.35, amb: '#cfe0ff', ambI: 0.62, fog: '#dce8fb', near: 18, far: 46 }, // Snow: cold, bright
+  { sun: '#ffe2f2', sunI: 1.55, amb: '#ffd6ec', ambI: 0.58, fog: '#ffd0ea', near: 20, far: 48 }, // Candy: sweet glow
+  { sun: '#ffcaa0', sunI: 1.55, amb: '#d8a487', ambI: 0.50, fog: '#a8492a', near: 18, far: 44 }, // Volcano: warm ember haze
+  { sun: '#eaffd0', sunI: 1.40, amb: '#bfe6c0', ambI: 0.52, fog: '#b8e0a8', near: 17, far: 42 }, // Jungle: green humid haze
+  { sun: '#cdd6ff', sunI: 1.25, amb: '#9aa6d8', ambI: 0.45, fog: '#2a2f55', near: 20, far: 50 }, // Moon: cold blue starlight
 ];
 function lerpAtmos(a, b, t) {
   return {
@@ -157,6 +157,8 @@ function defaultSave() {
     upgrades: { magnet: 1, mult: 1, boost: 1, shield: 1 },
     sound: true,
     music: true,
+    haptics: true,
+    reduceFx: false,
     missions: [],
     missionLvl: 0,
     daily: { last: '', streak: 0 },
@@ -165,8 +167,8 @@ function defaultSave() {
     doubler: false,
     xp: 0,
     rivalsBeaten: 0,
-    wordHunt: { date: '', got: [false, false, false, false, false, false], streak: 0 },
-    souvenirs: [false, false, false, false, false],
+    wordHunt: { date: '', got: Array(HUNT_WORD.length).fill(false), streak: 0 },
+    souvenirs: Array(THEMES.length).fill(false),
     pets: [],
     activePet: '',
     dailyRun: { date: '', best: 0 },
@@ -194,7 +196,8 @@ let S = (() => {
   const fresh = defaultSave();
   const num = (v, def) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? Math.floor(v) : def);
   for (const k of ['coins', 'best', 'boxes', 'hoverboards', 'xp', 'missionLvl', 'rivalsBeaten']) d[k] = num(d[k], fresh[k]);
-  for (const k of ['sound', 'music']) d[k] = typeof d[k] === 'boolean' ? d[k] : true;
+  for (const k of ['sound', 'music', 'haptics']) d[k] = typeof d[k] === 'boolean' ? d[k] : true;
+  d.reduceFx = d.reduceFx === true;
   d.doubler = d.doubler === true;
   d.seenHowto = d.seenHowto === true;
   if (typeof d.character !== 'string' || !CHARACTERS.some(c => c.id === d.character)) d.character = 'zip';
@@ -238,6 +241,24 @@ let S = (() => {
 function save() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); } catch (e) { /* storage unavailable */ }
 }
+
+/* haptics — one gate so a single Settings toggle controls every buzz */
+function buzz(pattern) {
+  if (S.haptics && navigator.vibrate) { try { navigator.vibrate(pattern); } catch (e) {} }
+}
+
+/* reduced motion — combines the OS setting with the in-app toggle. Read by the
+   renderer to suppress screen shake and full-screen flashes for comfort/safety. */
+let REDUCE = false;
+function refreshReduce() {
+  const os = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  REDUCE = !!(os || S.reduceFx);
+  document.body.classList.toggle('reduce-motion', REDUCE);
+}
+if (window.matchMedia) {
+  try { window.matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', refreshReduce); } catch (e) {}
+}
+refreshReduce();
 
 function addCoins(n) {
   S.coins += n;
@@ -466,10 +487,13 @@ function claimRoad(i) {
   save();
   AudioSys.sfx('mission');
   toast(`🏆 ${STAR_ROAD[i].label} claimed!`, true);
-  for (let k = 0; k < 40; k++) G.parts.push({
-    x: rand(0, W), y: rand(-H * 0.2, 0), vx: rand(-50, 50), vy: rand(60, 180), gentle: true,
-    life: rand(1.5, 3), color: pick(['#ffd23e', '#5ad845', '#54a9ff', '#ff6ec4']), size: rand(3, 7),
-  });
+  // confetti only renders/culls in run states — pushing it from the menu road panel just leaks
+  if (G.state === 'playing' || G.state === 'dying' || G.state === 'over' || G.state === 'continue') {
+    for (let k = 0; k < 40; k++) G.parts.push({
+      x: rand(0, W), y: rand(-H * 0.2, 0), vx: rand(-50, 50), vy: rand(60, 180), gentle: true,
+      life: rand(1.5, 3), color: pick(['#ffd23e', '#5ad845', '#54a9ff', '#ff6ec4']), size: rand(3, 7),
+    });
+  }
   renderRoad();
   refreshRoadBadge();
   refreshBalances();
@@ -485,9 +509,9 @@ const SPIN_PRIZES = [
   { label: 'BOARD', col: '#ff9a3c', w: 9, apply: () => { S.hoverboards += 1; return 'A Hoverboard! 🛹'; } },
   { label: '75',  col: '#b06cff', w: 16, apply: () => { S.coins += 75; return '+75 coins!'; } },
   { label: 'JACKPOT', col: '#ff6ec4', w: 4, apply: () => { S.coins += 1000; return '💰 JACKPOT! +1,000!'; } },
-  { label: '+SPIN', col: '#37b6ff', w: 14, apply: () => { spinFreebie = true; return 'A FREE spin! 🎡'; } },
+  { label: '+SPIN', col: '#37b6ff', w: 6, apply: () => { if (spinChain < 2) { spinChain++; spinFreebie = true; return 'A FREE spin! 🎡'; } S.coins += 75; return '+75 coins!'; } },
 ];
-let spinAngle = 0, spinBusy = false, spinFreebie = false;
+let spinAngle = 0, spinBusy = false, spinFreebie = false, spinChain = 0;
 
 function spinReady() { return S.spin.last !== todayStr(); }
 function refreshSpinBadge() { $('spin-badge').classList.toggle('hidden', !spinReady()); }
@@ -533,9 +557,11 @@ function refreshSpinButtons() {
 function doSpin(consumeFree) {
   if (spinBusy) return;
   if (consumeFree) {
-    if (spinFreebie) spinFreebie = false;
-    else if (spinReady()) { S.spin.last = todayStr(); save(); }
+    if (spinFreebie) spinFreebie = false;                                   // chained freebie
+    else if (spinReady()) { S.spin.last = todayStr(); spinChain = 0; save(); } // fresh daily spin
     else return;
+  } else {
+    spinChain = 0; // rewarded-ad spin starts a fresh chain
   }
   spinBusy = true;
   refreshSpinButtons();
@@ -564,7 +590,7 @@ function doSpin(consumeFree) {
       save();
       $('spin-result').textContent = msg;
       AudioSys.sfx(prize.label === 'JACKPOT' ? 'mission' : 'buy');
-      if (prize.label === 'JACKPOT' && navigator.vibrate) navigator.vibrate([60, 40, 80]);
+      if (prize.label === 'JACKPOT') buzz([60, 40, 80]);
       toast(msg, true);
       spinBusy = false;
       refreshBalances();
@@ -1067,8 +1093,8 @@ function project(laneF, z) {
 
 // sky palettes that slowly cycle as you run (day → sunset → night → dawn → embers)
 const SKIES = [
-  ['#4aa9ff', '#bfe6ff'], ['#ff9a5c', '#ffd9a0'], ['#1b1464', '#4a3f9e'], ['#ff7eb3', '#ffd1dc'],
-  ['#3a1f24', '#8a3a26'], ['#2e7d4f', '#aee89a'], ['#0a0a2e', '#2a2f66'],
+  ['#4aa9ff', '#bfe6ff'], ['#ff9a5c', '#ffd9a0'], ['#9fd0ff', '#e8f3ff'], ['#ff7eb3', '#ffd1dc'],
+  ['#5a1810', '#e0552a'], ['#2e7d4f', '#aee89a'], ['#0a0a2e', '#2a2f66'],
 ];
 const STARS = Array.from({ length: 42 }, () => [Math.random(), Math.random() * 0.9, rand(0.3, 1)]);
 const CLOUDS = [[0.15, 0.3, 0.22, 0.8], [0.55, 0.18, 0.3, 0.5], [0.85, 0.42, 0.18, 1.1], [0.35, 0.55, 0.14, 1.5]];
@@ -1352,7 +1378,7 @@ function update(dt) {
     const pr = project(G.laneF, 0);
     burst(pr.x, pr.y - 60, '#ffd23e', 22);
     burst(pr.x, pr.y - 60, '#ff6ec4', 14);
-    if (navigator.vibrate) navigator.vibrate([50, 40, 80]);
+    buzz([50, 40, 80]);
   }
 
   tickAnnounce(dt);
@@ -1422,7 +1448,7 @@ function update(dt) {
         AudioSys.tone(64, 0.12, 'sine', 0.16, 0, 40);
         AudioSys.tone(58, 0.1, 'sine', 0.12, 0.14, 38);
       }
-      if (navigator.vibrate && G.guardD > 0.75) navigator.vibrate(25);
+      if (G.guardD > 0.75) buzz(25);
     }
   }
   if (G.slideT >= 0) { G.slideT += dt; if (G.slideT > SLIDE_DUR) G.slideT = -1; }
@@ -1465,7 +1491,7 @@ function update(dt) {
     G.rushWarn = 2.4;
     addFloat('🚨 TRAIN RUSH!! 🚨', W / 2, H * 0.28, '#ff5e5e', 40);
     AudioSys.sfx('alarm');
-    if (navigator.vibrate) navigator.vibrate([80, 60, 80]);
+    buzz([80, 60, 80]);
   }
   if (G.rushWarn > 0) {
     G.rushWarn -= dt;
@@ -1604,7 +1630,7 @@ function update(dt) {
         G.flashT = 0.35;
         addFloat('🔥 FEVER TIME!! x3 🔥', W / 2, H * 0.3, '#fff', 42);
         AudioSys.sfx('fever');
-        if (navigator.vibrate) navigator.vibrate([60, 40, 60]);
+        buzz([60, 40, 60]);
       }
       refreshBalances();
     }
@@ -1709,7 +1735,7 @@ function update(dt) {
         addFloat('😱 STUMBLE!', W / 2, H * 0.3, '#ff9a3c', 34);
         addFloat("RUN — HE'S RIGHT BEHIND YOU!", W / 2, H * 0.37, '#ff5e5e', 22);
         AudioSys.sfx('smash');
-        if (navigator.vibrate) navigator.vibrate(90);
+        buzz(90);
         continue;
       }
       crash();
@@ -1799,7 +1825,7 @@ function crash() {
     G.guardLane = G.laneF;
     addFloat('😱 GOTCHA!', W / 2, H * 0.32, '#ff5e5e', 46);
   }
-  if (navigator.vibrate) navigator.vibrate(120);
+  buzz(120);
 }
 
 function showContinue() {
@@ -1912,8 +1938,8 @@ function gameOver() {
   awardStars(stars); // feed the Star Road
   $('over-best').textContent = fmt(S.best);
 
-  // rivals ladder — did we take anyone down this run?
-  while (S.rivalsBeaten < RIVALS.length && score > RIVALS[S.rivalsBeaten].score) {
+  // rivals ladder — take down at most ONE rival per run so the ladder stretches
+  if (S.rivalsBeaten < RIVALS.length && score > RIVALS[S.rivalsBeaten].score) {
     const r = RIVALS[S.rivalsBeaten];
     S.rivalsBeaten++;
     const reward = 150 + S.rivalsBeaten * 50;
@@ -1944,6 +1970,7 @@ function gameOver() {
     om.appendChild(d);
   }
   $('ovl-over').classList.remove('hidden');
+  save(); // persist stars + rival coins earned after the first save above
   refreshBalances();
 }
 
@@ -2031,8 +2058,8 @@ function render() {
     ctx.fill();
   }
 
-  // stars come out at night
-  const nightW = (i0 === 2 ? 1 - ft : 0) + (i1 === 2 ? ft : 0);
+  // stars come out at night (Moon Base, theme index 6)
+  const nightW = (i0 === 6 ? 1 - ft : 0) + (i1 === 6 ? ft : 0);
   if (nightW > 0.05) {
     ctx.fillStyle = '#fff';
     for (const s of STARS) {
@@ -2062,7 +2089,7 @@ function render() {
   }
 
   ctx.save();
-  if (G.shake > 0) ctx.translate(rand(-G.shake, G.shake), rand(-G.shake, G.shake));
+  if (G.shake > 0 && !REDUCE) ctx.translate(rand(-G.shake, G.shake), rand(-G.shake, G.shake));
   // subtle world roll when swerving lanes
   if (Math.abs(G.roll) > 0.001) {
     ctx.translate(W / 2, H);
@@ -2344,7 +2371,9 @@ function render() {
 
   // white pop flash (fever start etc.)
   if (G.flashT > 0) {
-    ctx.fillStyle = `rgba(255,255,255,${clamp(G.flashT / 0.35, 0, 1) * 0.65})`;
+    // reduced-motion users get a gentle, non-strobing dim instead of a white flash
+    const fa = clamp(G.flashT / 0.35, 0, 1) * (REDUCE ? 0.16 : 0.65);
+    ctx.fillStyle = `rgba(255,255,255,${fa})`;
     ctx.fillRect(0, 0, W, H);
   }
 
@@ -3091,6 +3120,7 @@ function render3D() {
     huntWord: HUNT_WORD,
     petIcon: petDef ? petDef.icon : null,
     atmos,
+    reduce: REDUCE,
   });
 
   // ---- overlay: particles, popups and full-screen juice ----
@@ -3111,8 +3141,8 @@ function render3D() {
     ctx.restore();
   }
 
-  // night tint
-  const nightW = (i0 === 2 ? 1 - ft : 0) + (i1 === 2 ? ft : 0);
+  // night tint (Moon Base, theme index 6)
+  const nightW = (i0 === 6 ? 1 - ft : 0) + (i1 === 6 ? ft : 0);
   if (nightW > 0.05) {
     ctx.fillStyle = `rgba(14,14,72,${0.28 * nightW})`;
     ctx.fillRect(0, 0, W, H);
@@ -3207,7 +3237,9 @@ function render3D() {
 
   // white pop flash
   if (G.flashT > 0) {
-    ctx.fillStyle = `rgba(255,255,255,${clamp(G.flashT / 0.35, 0, 1) * 0.65})`;
+    // reduced-motion users get a gentle, non-strobing dim instead of a white flash
+    const fa = clamp(G.flashT / 0.35, 0, 1) * (REDUCE ? 0.16 : 0.65);
+    ctx.fillStyle = `rgba(255,255,255,${fa})`;
     ctx.fillRect(0, 0, W, H);
   }
 
@@ -3460,6 +3492,10 @@ function renderSettings() {
   $('tgl-sound').className = 'btn ' + (S.sound ? 'btn-blue' : 'btn-grey');
   $('tgl-music').textContent = S.music ? 'On' : 'Off';
   $('tgl-music').className = 'btn ' + (S.music ? 'btn-blue' : 'btn-grey');
+  $('tgl-haptics').textContent = S.haptics ? 'On' : 'Off';
+  $('tgl-haptics').className = 'btn ' + (S.haptics ? 'btn-blue' : 'btn-grey');
+  $('tgl-reduce').textContent = S.reduceFx ? 'On' : 'Off';
+  $('tgl-reduce').className = 'btn ' + (S.reduceFx ? 'btn-blue' : 'btn-grey');
   $('stats-box').innerHTML = `
     🏃 Runs played: <b>${fmt(S.stats.runs)}</b><br>
     📏 Total distance: <b>${fmt(S.stats.totalDist)}m</b><br>
@@ -3549,14 +3585,15 @@ bind('btn-no-thanks', () => { if (G.state === 'continue') gameOver(); });
 /* game over */
 bind('btn-double', () => {
   if (G.state !== 'over' || G.doubled) return;
+  const amount = G.runCoins; // capture now — the over screen's run total won't change
   openAd(() => {
     if (G.state !== 'over' || G.doubled) return; // run already left behind
-    S.coins += G.runCoins;
+    S.coins += amount;
     G.doubled = true;
     save();
-    $('over-coins').textContent = fmt(G.runCoins * 2);
+    $('over-coins').textContent = fmt(amount * 2);
     $('btn-double').classList.add('hidden');
-    toast(`+${fmt(G.runCoins)} 🪙 DOUBLED!`, true);
+    toast(`+${fmt(amount)} 🪙 DOUBLED!`, true);
     AudioSys.sfx('buy');
     refreshBalances();
   });
@@ -3625,6 +3662,8 @@ bind('tgl-music', () => {
   S.music = !S.music; save(); renderSettings();
   if (S.music) AudioSys.startMusic(); else AudioSys.stopMusic();
 });
+bind('tgl-haptics', () => { S.haptics = !S.haptics; save(); renderSettings(); if (S.haptics) buzz(30); });
+bind('tgl-reduce', () => { S.reduceFx = !S.reduceFx; save(); refreshReduce(); renderSettings(); });
 bind('btn-reset', () => $('mod-confirm').classList.remove('hidden'));
 bind('btn-confirm-no', () => $('mod-confirm').classList.add('hidden'));
 bind('btn-confirm-yes', () => {
@@ -3634,7 +3673,14 @@ bind('btn-confirm-yes', () => {
 
 /* pause when the tab is hidden */
 document.addEventListener('visibilitychange', () => {
-  if (document.hidden && G.state === 'playing') pauseGame();
+  if (document.hidden) {
+    if (G.state === 'playing') pauseGame();
+  } else {
+    // coming back into view — the 'focus' event is unreliable on mobile app-switch,
+    // so clear the blur freeze here too or the continue countdown stays frozen forever
+    G.blurred = false;
+    if (AudioSys.ctx && AudioSys.ctx.state === 'suspended') AudioSys.ctx.resume().catch(() => {});
+  }
 });
 /* lose focus (e.g. embedded in a games portal) → pause and go quiet */
 window.addEventListener('blur', () => {
@@ -3654,6 +3700,14 @@ window.addEventListener('pointerdown', () => { AudioSys.ensure(); AudioSys.start
 /* installable app: offline cache (only when served over http/https) */
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
+  // when a new service worker takes over (fresh HTML cached), reload once so the
+  // player always runs the latest build instead of a stale cached page
+  let swReloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (swReloaded) return;
+    swReloaded = true;
+    location.reload();
+  });
 }
 
 ensureMissions();

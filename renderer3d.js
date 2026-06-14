@@ -277,7 +277,7 @@ window.R3D = (() => {
     if (!COIN_GEO) {
       COIN_GEO = new THREE.CylinderGeometry(0.36, 0.36, 0.1, 20); COIN_GEO.rotateX(Math.PI / 2);
       COIN_RIM = mat('#c8860a');
-      COIN_FACE = new THREE.MeshToonMaterial({ color: '#ffe14d', gradientMap: toonGrad(), emissive: new THREE.Color('#ffb300'), emissiveIntensity: 0.7 });
+      COIN_FACE = new THREE.MeshToonMaterial({ color: '#ffe14d', gradientMap: toonGrad(), emissive: new THREE.Color('#ffb300'), emissiveIntensity: 0.95 });
       COIN_STAR = new THREE.MeshBasicMaterial({ color: '#fff6c8' });
     }
     const g = new THREE.Group();
@@ -488,12 +488,12 @@ window.R3D = (() => {
   }
   let FACE = null;
 
-  const OUTLINE = applyCurve(new THREE.MeshBasicMaterial({ color: 0x241a2e, side: THREE.BackSide }));
+  const OUTLINE = applyCurve(new THREE.MeshBasicMaterial({ color: 0x140e1c, side: THREE.BackSide }));
   function makeChar(def) {
     const g = new THREE.Group();
-    // cartoon outline: an inflated black backside shell around the body silhouette
+    // cartoon outline: an inflated near-black backside shell around the body silhouette
     const outline = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 14), OUTLINE);
-    outline.scale.set(1.07, 1.16, 0.92);
+    outline.scale.set(1.12, 1.2, 0.97);
     outline.position.y = 0.95;
     g.add(outline);
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 14), mat(def.body));
@@ -631,7 +631,7 @@ window.R3D = (() => {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.0;
+    renderer.toneMappingExposure = 1.12;
 
     scene = new THREE.Scene();
     scene.fog = new THREE.Fog(SKY.getHex(), 21, 44);
@@ -643,13 +643,13 @@ window.R3D = (() => {
     keySun = sun;
     sun.position.set(7, 13, 5);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
+    sun.shadow.mapSize.set(1024, 1024);
     sun.shadow.camera.left = -10; sun.shadow.camera.right = 10;
     sun.shadow.camera.top = 5; sun.shadow.camera.bottom = -32;
     sun.shadow.bias = -0.0004;
     scene.add(sun);
     // cool rim/back light to separate characters from the background
-    const rim = new THREE.DirectionalLight(0x9fc4ff, 0.5);
+    const rim = new THREE.DirectionalLight(0x9fc4ff, 0.72);
     rim.position.set(-6, 5, -8);
     scene.add(rim);
 
@@ -828,7 +828,7 @@ window.R3D = (() => {
     }
 
     /* ----- overhead gantries to rush beneath ----- */
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 3; i++) {
       const gg = new THREE.Group();
       const gm = cmat('#46557a');
       for (const s of [-1, 1]) {
@@ -855,11 +855,11 @@ window.R3D = (() => {
         fsz -= 2;
       } while (fsz > 18);
       sx.fillText('RASCAL EXPRESS', 256, 66);
-      const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.1),
+      const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 0.88),
         new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signC), transparent: true }));
-      sign.position.set(0, 3.7, 0.32);
+      sign.position.set(0, 3.78, 0.32);
       gg.add(sign);
-      gg.userData.amb = { side: 0, i, spacing: 19, x: 0 };
+      gg.userData.amb = { side: 0, i, spacing: 26, x: 0 };
       scene.add(gg);
       gantries.push(gg);
     }
@@ -927,8 +927,8 @@ window.R3D = (() => {
 
     // sky / fog / ground colours follow the theme + day cycle
     // (saturation-boosted to compensate for filmic tone mapping)
-    _c1.setStyle(o.skyTop).offsetHSL(0, 0.14, 0.01);
-    _c2.setStyle(o.skyBot).offsetHSL(0, 0.14, 0.01);
+    _c1.setStyle(o.skyTop).offsetHSL(0, 0.18, 0.015);
+    _c2.setStyle(o.skyBot).offsetHSL(0, 0.18, 0.015);
     const sg = skyCtx.createLinearGradient(0, 0, 0, 256);
     sg.addColorStop(0, _c1.getStyle());
     sg.addColorStop(0.75, _c2.getStyle());
@@ -936,7 +936,7 @@ window.R3D = (() => {
     skyCtx.fillStyle = sg;
     skyCtx.fillRect(0, 0, 2, 256);
     skyTexture.needsUpdate = true;
-    _c2.setStyle(o.ground).offsetHSL(0, 0.1, 0);
+    _c2.setStyle(o.ground).offsetHSL(0, 0.14, 0.005);
     ground.material.color.copy(_c2);
 
     // per-biome atmosphere: tint the sun, ambient and fog so each world has its own air
@@ -957,9 +957,10 @@ window.R3D = (() => {
       const t = 1 - Math.max(0, G.dieT) / 0.9;
       cz = 8.6 - t * 3.4; cy = 4.9 - t * 1.6;
     }
+    const shk = (G.shake > 0 && !o.reduce) ? G.shake : 0;
     camera.position.set(
-      sway + (G.shake > 0 ? (Math.random() - 0.5) * G.shake * 0.045 : 0),
-      cy + (G.shake > 0 ? (Math.random() - 0.5) * G.shake * 0.035 : 0),
+      sway + (shk ? (Math.random() - 0.5) * shk * 0.045 : 0),
+      cy + (shk ? (Math.random() - 0.5) * shk * 0.035 : 0),
       cz
     );
     camera.lookAt(sway * 0.85, 1.05, -11);
@@ -992,7 +993,7 @@ window.R3D = (() => {
     for (const m of poles) scroll(m);
     // gantries arch overhead, but hide them as they reach the camera so the
     // big sign never slabs across the screen and covers the hero
-    for (const m of gantries) { scroll(m); m.visible = m.position.z < 3.4; }
+    for (const m of gantries) { scroll(m); m.visible = m.position.z < 1.4; }
     // clouds drift gently
     for (const c of clouds) {
       c.position.x += Math.sin(G.phase * 0.1) * 0; // anchored
