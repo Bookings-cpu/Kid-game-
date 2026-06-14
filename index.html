@@ -148,6 +148,10 @@
     <button id="btn-daily-run" class="btn btn-daily">📅 Daily Run · <small id="daily-best"></small></button>
     <button id="btn-spin" class="btn btn-spin"><svg class="ico"><use href="#i-wheel"/></svg> Spin<span id="spin-badge" class="badge hidden">!</span></button>
   </div>
+  <button id="btn-road" class="btn btn-road">
+    <svg class="ico"><use href="#i-trophy"/></svg> <span id="road-label">Star Road</span>
+    <span id="road-badge" class="badge hidden">!</span>
+  </button>
   <div class="menu-row">
     <button id="btn-shop" class="btn btn-round" title="Shop"><svg class="ico-btn"><use href="#i-cart"/></svg><small>Shop</small></button>
     <button id="btn-chars" class="btn btn-round" title="Heroes"><svg class="ico-btn"><use href="#i-hero"/></svg><small>Heroes</small></button>
@@ -328,6 +332,16 @@
     <p class="gate-sub">Come back every day for bigger gifts!</p>
     <div id="daily-grid"></div>
     <button id="btn-daily-claim" class="btn btn-big btn-yellow">🎁 Claim!</button>
+  </div>
+</div>
+
+<!-- ================= STAR ROAD ================= -->
+<div id="mod-road" class="overlay hidden">
+  <div class="dialog road-dialog">
+    <h2><svg class="ico-ttl"><use href="#i-trophy"/></svg> Star Road</h2>
+    <p class="gate-sub">Earn ⭐ every run — climb the road for big prizes!</p>
+    <div id="road-list" class="road-list"></div>
+    <button id="btn-road-close" class="btn btn-big btn-grey">Close</button>
   </div>
 </div>
 

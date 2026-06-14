@@ -167,6 +167,8 @@ function defaultSave() {
     activePet: '',
     dailyRun: { date: '', best: 0 },
     spin: { last: '' },
+    stars: 0,
+    roadClaimed: -1,
     seenHowto: false,
     stats: { runs: 0, totalCoins: 0, totalDist: 0, jumps: 0, slides: 0, powerups: 0 },
   };
@@ -224,6 +226,8 @@ let S = (() => {
   d.dailyRun.best = num(d.dailyRun.best, 0);
   if (!d.spin || typeof d.spin !== 'object') d.spin = fresh.spin;
   d.spin.last = typeof d.spin.last === 'string' ? d.spin.last : '';
+  d.stars = num(d.stars, 0);
+  d.roadClaimed = (typeof d.roadClaimed === 'number' && d.roadClaimed >= -1) ? Math.floor(d.roadClaimed) : -1;
   return d;
 })();
 
@@ -384,6 +388,86 @@ function doOpenBox() {
   $('box-reward').textContent = r.text;
   AudioSys.sfx(r.jackpot ? 'mission' : 'buy');
   refreshBoxButtons();
+  refreshBalances();
+}
+
+/* ============================== star road (reward track) ============================== */
+// every run earns stars; claim chests in order as the total climbs.
+const STAR_ROAD = [
+  { at: 3,   ico: '🪙', label: '150 coins',     apply: () => { S.coins += 150; } },
+  { at: 6,   ico: '🎁', label: 'Mystery Box',   apply: () => { S.boxes += 1; } },
+  { at: 10,  ico: '🪙', label: '300 coins',     apply: () => { S.coins += 300; } },
+  { at: 15,  ico: '🛹', label: '2 Hoverboards', apply: () => { S.hoverboards += 2; } },
+  { at: 21,  ico: '🎁', label: '2 Mystery Boxes', apply: () => { S.boxes += 2; } },
+  { at: 28,  ico: '🦸', label: 'Hero: Coco!',   apply: () => roadUnlockHero('coco') },
+  { at: 36,  ico: '🪙', label: '1,000 coins',   apply: () => { S.coins += 1000; } },
+  { at: 45,  ico: '🎁', label: '3 Mystery Boxes', apply: () => { S.boxes += 3; } },
+  { at: 55,  ico: '🐾', label: 'Pet: Drago!',   apply: () => roadUnlockPet('drago') },
+  { at: 66,  ico: '🪙', label: '2,500 coins',   apply: () => { S.coins += 2500; } },
+  { at: 80,  ico: '🦸', label: 'Hero: Nova!',   apply: () => roadUnlockHero('nova') },
+  { at: 100, ico: '👑', label: '5,000 coins!',  apply: () => { S.coins += 5000; } },
+];
+function roadUnlockHero(id) {
+  if (!S.owned.includes(id)) S.owned.push(id); else S.coins += 1500; // already owned -> coins
+}
+function roadUnlockPet(id) {
+  if (!S.pets.includes(id)) S.pets.push(id); else S.coins += 2000;
+}
+function nextRoadIdx() { return S.roadClaimed + 1; } // first unclaimed milestone
+function roadClaimable() {
+  const i = nextRoadIdx();
+  return i < STAR_ROAD.length && S.stars >= STAR_ROAD[i].at;
+}
+function refreshRoadBadge() {
+  $('road-badge').classList.toggle('hidden', !roadClaimable());
+  const i = nextRoadIdx();
+  $('road-label').textContent = i < STAR_ROAD.length
+    ? `Star Road · ${fmt(S.stars)}/${STAR_ROAD[i].at} ⭐`
+    : `Star Road · MAXED 👑`;
+}
+function awardStars(n) {
+  if (n <= 0) return;
+  S.stars += n;
+  // (saved by gameOver) — badge refreshes when the menu next shows
+}
+function renderRoad() {
+  refreshBalances();
+  const list = $('road-list');
+  list.innerHTML = '';
+  STAR_ROAD.forEach((m, i) => {
+    const done = i <= S.roadClaimed;
+    const ready = i === nextRoadIdx() && S.stars >= m.at;
+    const node = document.createElement('div');
+    node.className = 'road-node' + (done ? ' done' : ready ? ' ready' : '');
+    const prev = i > 0 ? STAR_ROAD[i - 1].at : 0;
+    const pct = clamp(((S.stars - prev) / (m.at - prev)) * 100, 0, 100);
+    node.innerHTML = `
+      <div class="road-dot">${done ? '✓' : m.ico}</div>
+      <div class="road-info">
+        <b>${m.ico} ${m.label}</b>
+        <span>${m.at} ⭐ total</span>
+        ${done || ready ? '' : `<div class="road-prog"><i style="width:${pct}%"></i></div>`}
+      </div>
+      ${done ? '<span class="road-prog" style="display:none"></span>'
+            : ready ? '<button class="btn btn-green">CLAIM!</button>'
+            : `<span style="font-size:13px;opacity:.7;flex-shrink:0">${fmt(Math.max(0, m.at - S.stars))} to go</span>`}`;
+    if (ready) node.querySelector('button').addEventListener('click', () => claimRoad(i));
+    list.appendChild(node);
+  });
+}
+function claimRoad(i) {
+  if (i !== nextRoadIdx() || S.stars < STAR_ROAD[i].at) return;
+  STAR_ROAD[i].apply();
+  S.roadClaimed = i;
+  save();
+  AudioSys.sfx('mission');
+  toast(`🏆 ${STAR_ROAD[i].label} claimed!`, true);
+  for (let k = 0; k < 40; k++) G.parts.push({
+    x: rand(0, W), y: rand(-H * 0.2, 0), vx: rand(-50, 50), vy: rand(60, 180), gentle: true,
+    life: rand(1.5, 3), color: pick(['#ffd23e', '#5ad845', '#54a9ff', '#ff6ec4']), size: rand(3, 7),
+  });
+  renderRoad();
+  refreshRoadBadge();
   refreshBalances();
 }
 
@@ -604,6 +688,7 @@ function showScreen(name) {
     drawMenuChar();
     refreshMissionBadge();
     refreshSpinBadge();
+    refreshRoadBadge();
     $('daily-best').textContent = S.dailyRun.date === todayStr()
       ? `Best today: ${fmt(S.dailyRun.best)}`
       : 'NEW track today!';
@@ -1818,6 +1903,7 @@ function gameOver() {
   }, 25);
   const stars = (isBest || score >= 5000) ? 3 : score >= 1500 ? 2 : 1;
   $('over-stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
+  awardStars(stars); // feed the Star Road
   $('over-best').textContent = fmt(S.best);
 
   // rivals ladder — did we take anyone down this run?
@@ -3350,6 +3436,8 @@ for (const b of document.querySelectorAll('.btn-back')) {
 bind('btn-pause', pauseGame);
 bind('btn-board', activateBoard);
 bind('btn-boxes', openBoxModal);
+bind('btn-road', () => { $('mod-road').classList.remove('hidden'); renderRoad(); });
+bind('btn-road-close', () => $('mod-road').classList.add('hidden'));
 bind('btn-spin', openSpin);
 bind('btn-spin-go', () => doSpin(true));
 bind('btn-spin-ad', () => { openAd(() => doSpin(false)); });
