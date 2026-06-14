@@ -800,13 +800,20 @@ window.R3D = (() => {
         scene.add(slot);
         ambient.push(slot);
       }
-      for (let i = 0; i < 12; i++) { // far row: big background greens
-        const kind = ['tree', 'tree', 'pine', 'house'][Math.floor(hash01(i * 41 + side * 7) * 4)];
-        const m = makeDecor(kind);
-        m.scale.setScalar(1.6 + hash01(i * 43 + side) * 1.1);
-        m.userData.amb = { side, i, spacing: 5.6, x: side * (11 + hash01(i * 47 + side) * 5) };
-        scene.add(m);
-        ambient.push(m);
+      for (let i = 0; i < 12; i++) { // far row: big background silhouettes, theme-aware
+        const slot = new THREE.Group();
+        for (let t = 0; t < AMBIENT_THEMES.length; t++) {
+          const kinds = AMBIENT_THEMES[t];
+          const kind = kinds[Math.floor(hash01(i * 41 + side * 7 + t * 71) * kinds.length)];
+          const v = makeDecor(kind);
+          v.visible = t === 0;
+          slot.add(v);
+        }
+        slot.scale.setScalar(1.6 + hash01(i * 43 + side) * 1.1);
+        slot.userData.amb = { side, i, spacing: 5.6, x: side * (11 + hash01(i * 47 + side) * 5) };
+        slot.userData.themed = true;
+        scene.add(slot);
+        ambient.push(slot);
       }
     }
 

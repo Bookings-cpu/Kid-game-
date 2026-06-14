@@ -293,7 +293,8 @@ function newMission(excludeTpls) {
     tpl: t.tpl,
     target: Math.round(t.base * scale),
     prog: 0,
-    reward: Math.round(t.reward * (1 + S.missionLvl * 0.25)),
+    // reward grows with the target so higher levels stay worth the extra effort
+    reward: Math.round(t.reward * scale),
     notified: false,
   };
 }
@@ -1480,8 +1481,10 @@ function update(dt) {
       if (G.queueJump) { G.queueJump = false; G.jumpT = 0; AudioSys.sfx('jump'); S.stats.jumps++; }
     }
   }
-  // the guard: falls back while you run clean, lurks ready to pounce
-  G.guardD = Math.max(0, G.guardD - dt * 0.16);
+  // the guard: falls back while you run clean, lurks ready to pounce.
+  // Decay is brisk enough that a clean stretch reliably shakes him — the threat
+  // should come from your own mistakes, not from never being able to recover.
+  G.guardD = Math.max(0, G.guardD - dt * 0.22);
   if (G.guardD < 0.45) G.stumbled = false; // outran him — safe again
   G.guardLane = lerp(G.guardLane, G.laneF, Math.min(1, dt * 3.5));
   if (G.guardD > 0.45) {
@@ -1761,7 +1764,7 @@ function update(dt) {
       // closer. Let him close the gap and he GRABS you. Run clean to pull ahead.
       if (o.kind !== 'train') {
         G.obstacles = G.obstacles.filter(x => x !== o);
-        G.guardD = Math.min(1.3, G.guardD + 0.5); // he lunges forward on every mistake
+        G.guardD = Math.min(1.3, G.guardD + 0.4); // he lunges forward on every mistake
         G.stumbled = true;
         G.heartT = 0;
         G.speed *= 0.55;
@@ -1995,7 +1998,9 @@ function gameOver() {
     $('over-score').textContent = fmt(shown);
     if (shown >= score) clearInterval(G.scoreTick);
   }, 25);
-  const stars = (isBest || score >= 5000) ? 3 : score >= 1500 ? 2 : 1;
+  // skill-gated stars: always 1, +1 at 3k, +1 at 8k — so the Star Road stretches
+  // out and 3 stars actually means a great run (not just any new best)
+  const stars = score >= 8000 ? 3 : score >= 3000 ? 2 : 1;
   $('over-stars').textContent = '⭐'.repeat(stars) + '☆'.repeat(3 - stars);
   awardStars(stars); // feed the Star Road
   $('over-best').textContent = fmt(S.best);
