@@ -787,6 +787,12 @@ function refreshBalances() {
 /* ---------- simulated rewarded ad ---------- */
 const Ad = { timer: null, onReward: null };
 
+// PLACEHOLDER rewarded ad. Before shipping to a kids store this MUST be replaced
+// with a certified child-safe rewarded-ad SDK (e.g. AdMob with child-directed
+// treatment / "Designed for Families", or a kids-certified network). All ad
+// triggers here are opt-in (the child taps to watch for a reward), which the
+// store policies allow; the SDK must still be configured for age-appropriate,
+// non-personalised ad content. Real-money IAP stays behind openGate() above.
 function openAd(onReward) {
   Ad.onReward = onReward;
   $('mod-ad').classList.remove('hidden');
@@ -3193,8 +3199,10 @@ function bloomPass() {
   // 1) crush the frame to its brightest pixels at quarter-res (cheap)
   _bloomX.clearRect(0, 0, bw, bh);
   _bloomX.filter = 'brightness(0.62) contrast(3.4) saturate(1.5)';
+  // a drawImage failure (e.g. tainted canvas) disables ONLY bloom, not the
+  // shadows/resolution the adaptive-quality system controls via __lowGfx
   try { _bloomX.drawImage(canvas, 0, 0, bw, bh); }
-  catch (e) { window.__lowGfx = true; return; }
+  catch (e) { window.__bloomFail = true; return; }
   _bloomX.filter = 'none';
   // 2) add the soft, upscaled glow back over the frame
   ctx.save();
@@ -3236,7 +3244,7 @@ function render3D() {
   // Done at quarter-res in an offscreen buffer — the expensive crush/blur runs over
   // 1/16th the pixels, then upscales (which softens it further for free). Same glow,
   // a fraction of the cost. Canvas2D filters are GPU-accelerated on real devices.
-  if (!window.__lowGfx && ctx.filter !== undefined) bloomPass();
+  if (!window.__lowGfx && !window.__bloomFail && ctx.filter !== undefined) bloomPass();
 
   // night tint (Moon Base, theme index 6)
   const nightW = (i0 === 6 ? 1 - ft : 0) + (i1 === 6 ? ft : 0);
