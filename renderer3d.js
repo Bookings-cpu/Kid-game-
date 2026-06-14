@@ -1011,8 +1011,14 @@ window.R3D = (() => {
         m.userData.body.scale.z = len;
         m.userData.shell.scale.z = len * 1.02;
         m.userData.roof.scale.z = 0.35 * len;
-        m.userData.body.material = cmat(TRAIN_COLS[ob.hue]);
-        m.userData.roof.material = cmat(TRAIN_COLS[ob.hue]);
+        // materials are cached by colour; only re-point them when this pooled
+        // car's hue actually changes
+        if (m.userData.hue !== ob.hue) {
+          const tm = cmat(TRAIN_COLS[ob.hue]);
+          m.userData.body.material = tm;
+          m.userData.roof.material = tm;
+          m.userData.hue = ob.hue;
+        }
         // children that hug the front need to sit at +len/2
         for (const ch of m.children) {
           if (ch !== m.userData.body && ch !== m.userData.roof && !(ch.geometry && ch.geometry.type === 'PlaneGeometry' && ch.rotation.y !== 0)) {

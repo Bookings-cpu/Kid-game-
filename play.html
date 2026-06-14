@@ -1939,8 +1939,14 @@ window.R3D = (() => {
         m.userData.body.scale.z = len;
         m.userData.shell.scale.z = len * 1.02;
         m.userData.roof.scale.z = 0.35 * len;
-        m.userData.body.material = cmat(TRAIN_COLS[ob.hue]);
-        m.userData.roof.material = cmat(TRAIN_COLS[ob.hue]);
+        // materials are cached by colour; only re-point them when this pooled
+        // car's hue actually changes
+        if (m.userData.hue !== ob.hue) {
+          const tm = cmat(TRAIN_COLS[ob.hue]);
+          m.userData.body.material = tm;
+          m.userData.roof.material = tm;
+          m.userData.hue = ob.hue;
+        }
         // children that hug the front need to sit at +len/2
         for (const ch of m.children) {
           if (ch !== m.userData.body && ch !== m.userData.roof && !(ch.geometry && ch.geometry.type === 'PlaneGeometry' && ch.rotation.y !== 0)) {
@@ -2143,6 +2149,8 @@ const THEMES = [
   { name: '🌙 Moon Base',     ground: ['#8a8fa6', '#6c7188'], groundLo: ['#565b73', '#3d4257'] },
 ];
 const SOUV_ICONS = ['🌼', '🌵', '❄️', '🍭', '🌋', '🌴', '🌙'];
+// escalating combo praise — hoisted so it isn't re-allocated on every coin
+const PRAISE = { 5: 'NICE!', 10: 'GREAT!', 20: 'AWESOME!', 30: 'UNSTOPPABLE!', 40: 'LEGENDARY!!' };
 
 // per-biome atmosphere for the 3D renderer: sun colour/intensity, ambient tint,
 // fog colour tint + near/far. Gives each world its own light and air.
@@ -3433,8 +3441,9 @@ canvas.addEventListener('pointerup', (e) => {
 /* ---------- update ---------- */
 function update(dt) {
   G.phase += dt;
-  // speed ramps up forever (capped) — the addictive difficulty curve
-  const targetSpeed = Math.min(760, 300 + G.dist / 28);
+  // speed ramps up forever — identical early curve, but keeps climbing past the
+  // old ~13k plateau up to a higher cap so skilled runs never get boring
+  const targetSpeed = Math.min(900, 300 + G.dist / 28);
   G.speed = lerp(G.speed, targetSpeed * (G.pu.boost > 0 ? 1.65 : 1), dt * 2);
 
   const dz = G.speed * dt;
@@ -3692,9 +3701,8 @@ function update(dt) {
       G.flyCoins.push({ x: pr.x, y: pr.y - 50, t: 0 });
       // combo chain — escalating praise, then FEVER TIME
       G.combo++; G.comboT = 1.6;
-      const praise = { 5: 'NICE!', 10: 'GREAT!', 20: 'AWESOME!', 30: 'UNSTOPPABLE!', 40: 'LEGENDARY!!' };
-      if (praise[G.combo]) {
-        addFloat(praise[G.combo], W / 2, H * 0.3, '#ff6ec4', 36);
+      if (PRAISE[G.combo]) {
+        addFloat(PRAISE[G.combo], W / 2, H * 0.3, '#ff6ec4', 36);
         AudioSys.sfx('powerup');
       }
       if (G.combo % 10 === 0) {
@@ -4431,10 +4439,7 @@ function render() {
   }
 
   // soft cinematic vignette
-  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.78);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,.22)');
-  ctx.fillStyle = vg;
+  ctx.fillStyle = vignette(0.22);
   ctx.fillRect(0, 0, W, H);
 
   // coins flying up to the wallet counter
@@ -5199,6 +5204,48 @@ function updateAmbientFX(theme, ft) {
   ctx.globalAlpha = 1;
 }
 
+/* ---------- cached vignette (geometry only depends on W/H) ---------- */
+let _vigGrad = null, _vigKey = '';
+function vignette(alpha) {
+  const key = W + 'x' + H + ':' + alpha;
+  if (_vigKey !== key) {
+    _vigGrad = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.78);
+    _vigGrad.addColorStop(0, 'rgba(0,0,0,0)');
+    _vigGrad.addColorStop(1, `rgba(0,0,0,${alpha})`);
+    _vigKey = key;
+  }
+  return _vigGrad;
+}
+
+/* ---------- quarter-res bloom buffer ---------- */
+let _bloomC = null, _bloomX = null, _bloomBW = 0, _bloomBH = 0;
+function bloomPass() {
+  const bw = Math.max(1, Math.round(W / 4)), bh = Math.max(1, Math.round(H / 4));
+  if (!_bloomC || _bloomBW !== bw || _bloomBH !== bh) {
+    _bloomC = document.createElement('canvas');
+    _bloomC.width = bw; _bloomC.height = bh;
+    _bloomX = _bloomC.getContext('2d');
+    _bloomBW = bw; _bloomBH = bh;
+  }
+  // 1) crush the frame to its brightest pixels at quarter-res (cheap)
+  _bloomX.clearRect(0, 0, bw, bh);
+  _bloomX.filter = 'brightness(0.62) contrast(3.4) saturate(1.5)';
+  try { _bloomX.drawImage(canvas, 0, 0, bw, bh); }
+  catch (e) { window.__lowGfx = true; return; }
+  _bloomX.filter = 'none';
+  // 2) add the soft, upscaled glow back over the frame
+  ctx.save();
+  ctx.globalCompositeOperation = 'lighter';
+  ctx.globalAlpha = 0.34;
+  ctx.filter = 'blur(3px)';
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(_bloomC, 0, 0, bw, bh, 0, 0, W, H);
+  ctx.filter = 'none';
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.restore();
+}
+
 /* ---------- 3D frame: WebGL world + 2D overlay juice ---------- */
 function render3D() {
   // colours follow the same theme/day cycle as the 2D renderer
@@ -5223,19 +5270,10 @@ function render3D() {
   ctx.clearRect(0, 0, W, H);
 
   // real bloom: sample the rendered 3D frame, crush to bright areas, blur, add back.
-  // Canvas2D filters are GPU-accelerated on real devices; skipped on weak ones.
-  if (!window.__lowGfx && ctx.filter !== undefined) {
-    ctx.save();
-    ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.34;
-    // darken first, then crush contrast so only the brightest pixels survive the bloom
-    ctx.filter = 'blur(8px) brightness(0.62) contrast(3.4) saturate(1.5)';
-    try { ctx.drawImage(canvas, 0, 0, W, H); } catch (e) { window.__lowGfx = true; }
-    ctx.filter = 'none';
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.restore();
-  }
+  // Done at quarter-res in an offscreen buffer — the expensive crush/blur runs over
+  // 1/16th the pixels, then upscales (which softens it further for free). Same glow,
+  // a fraction of the cost. Canvas2D filters are GPU-accelerated on real devices.
+  if (!window.__lowGfx && ctx.filter !== undefined) bloomPass();
 
   // night tint (Moon Base, theme index 6)
   const nightW = (i0 === 6 ? 1 - ft : 0) + (i1 === 6 ? ft : 0);
@@ -5340,10 +5378,7 @@ function render3D() {
   }
 
   // soft vignette
-  const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.45, W / 2, H / 2, Math.max(W, H) * 0.78);
-  vg.addColorStop(0, 'rgba(0,0,0,0)');
-  vg.addColorStop(1, 'rgba(0,0,0,.2)');
-  ctx.fillStyle = vg;
+  ctx.fillStyle = vignette(0.2);
   ctx.fillRect(0, 0, W, H);
 }
 
