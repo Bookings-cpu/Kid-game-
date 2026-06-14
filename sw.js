@@ -3,7 +3,7 @@
 const CACHE = 'railrascals-v3';
 const ASSETS = [
   './', 'index.html', 'style.css', 'game.js', 'three.min.js', 'renderer3d.js',
-  'manifest.json', 'icon-192.png', 'icon-512.png', 'fonts/baloo2-latin.woff2',
+  'manifest.json', 'icon-192.png', 'icon-512.png', 'icon-512-maskable.png', 'fonts/baloo2-latin.woff2',
 ];
 
 self.addEventListener('install', (e) => {

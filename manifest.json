@@ -1,5 +1,5 @@
 {
-  "id": "/",
+  "id": ".",
   "name": "Rail Rascals!",
   "short_name": "Rail Rascals",
   "description": "A super fun endless runner game for kids",
@@ -8,13 +8,19 @@
   "categories": ["games", "kids", "entertainment"],
   "start_url": ".",
   "scope": ".",
-  "display": "fullscreen",
+  "display": "standalone",
+  "display_override": ["fullscreen", "standalone"],
   "orientation": "portrait",
   "background_color": "#3e8ef7",
   "theme_color": "#3e8ef7",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    { "src": "icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "screenshots": [
+    { "src": "screenshot-1-menu.png", "sizes": "824x1648", "type": "image/png", "form_factor": "narrow", "label": "Main menu" },
+    { "src": "screenshot-2-run.png", "sizes": "824x1648", "type": "image/png", "form_factor": "narrow", "label": "Dashing through Sunny Meadows" },
+    { "src": "screenshot-3-run.png", "sizes": "824x1648", "type": "image/png", "form_factor": "narrow", "label": "Racing through Jungle Jam" }
   ]
 }
