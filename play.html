@@ -1177,7 +1177,7 @@ window.R3D = (() => {
       g.add(post);
     }
     const board = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.42, 0.08),
-      new THREE.MeshStandardMaterial({ map: stripeTexCache, roughness: 0.8 }));
+      applyCurve(new THREE.MeshStandardMaterial({ map: stripeTexCache, roughness: 0.8 })));
     board.position.y = 0.72;
     board.castShadow = true;
     g.add(board);
@@ -1201,7 +1201,7 @@ window.R3D = (() => {
       g.add(post);
     }
     const sign = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.8, 0.1),
-      new THREE.MeshStandardMaterial({ map: duckTex }));
+      applyCurve(new THREE.MeshStandardMaterial({ map: duckTex })));
     sign.position.y = 2.2;
     sign.castShadow = true;
     g.add(sign);
@@ -1228,8 +1228,8 @@ window.R3D = (() => {
     if (!COIN_GEO) {
       COIN_GEO = new THREE.CylinderGeometry(0.36, 0.36, 0.1, 20); COIN_GEO.rotateX(Math.PI / 2);
       COIN_RIM = mat('#c8860a');
-      COIN_FACE = new THREE.MeshToonMaterial({ color: '#ffe14d', gradientMap: toonGrad(), emissive: new THREE.Color('#ffb300'), emissiveIntensity: 0.95 });
-      COIN_STAR = new THREE.MeshBasicMaterial({ color: '#fff6c8' });
+      COIN_FACE = applyCurve(new THREE.MeshToonMaterial({ color: '#ffe14d', gradientMap: toonGrad(), emissive: new THREE.Color('#ffb300'), emissiveIntensity: 0.95 }));
+      COIN_STAR = applyCurve(new THREE.MeshBasicMaterial({ color: '#fff6c8' }));
     }
     const g = new THREE.Group();
     const rim = new THREE.Mesh(COIN_GEO, COIN_RIM);
@@ -1243,13 +1243,8 @@ window.R3D = (() => {
       star.position.z = s * 1.04; star.rotation.z = 0.3; star.rotation.y = s > 0 ? 0 : Math.PI;
       g.add(star);
     }
-    // additive glow halo — fakes a bloom so coins read as bright and valuable
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowTex('#ffe14d'), blending: THREE.AdditiveBlending, transparent: true,
-      depthWrite: false, opacity: 0.55,
-    }));
-    halo.scale.set(1.25, 1.25, 1);
-    g.add(halo);
+    // (the glow now comes from the emissive face + the canvas bloom pass — a
+    // billboard sprite halo couldn't follow the curved-world bend and floated)
     return g;
   }
   let GLOWTEX = {};
@@ -1375,7 +1370,7 @@ window.R3D = (() => {
       case 'geyser': {
         add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.42, 0.55, 9), cmat('#6b5a52')), 0, 0.28, 0);
         const puff = add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6),
-          new THREE.MeshBasicMaterial({ color: 0xfff5eb, transparent: true, opacity: 0.7 })), 0, 0.75, 0);
+          applyCurve(new THREE.MeshBasicMaterial({ color: 0xfff5eb, transparent: true, opacity: 0.7 }))), 0, 0.75, 0);
         puff.userData.puff = true;
         break;
       }
@@ -1398,7 +1393,7 @@ window.R3D = (() => {
       arm.position.set(s * 0.5, 0.1, 0);
       g.add(arm);
       const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.02, 10),
-        new THREE.MeshBasicMaterial({ color: 0xdce4f0, transparent: true, opacity: 0.45 }));
+        applyCurve(new THREE.MeshBasicMaterial({ color: 0xdce4f0, transparent: true, opacity: 0.45 })));
       disc.position.set(s * 0.68, 0.16, 0);
       g.add(disc);
       rotors.push(disc);
@@ -1814,7 +1809,7 @@ window.R3D = (() => {
       } while (fsz > 18);
       sx.fillText('RASCAL EXPRESS', 256, 66);
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 0.88),
-        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signC), transparent: true }));
+        applyCurve(new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signC), transparent: true })));
       sign.position.set(0, 3.78, 0.32);
       gg.add(sign);
       gg.userData.amb = { side: 0, i, spacing: 26, x: 0 };
@@ -3312,8 +3307,27 @@ const PATTERNS = [
   [null, 'bar', null], ['hurdle', null, 'hurdle'],
 ];
 
+// lanes a pattern leaves passable (empty, or jumpable/rollable — not a train)
+function patternSafeLanes(p) {
+  const s = [];
+  p.forEach((kind, i) => { if (!kind || kind !== 'train') s.push(i - 1); });
+  return s;
+}
+
 function spawnChunk() {
-  const pat = pick(PATTERNS);
+  // Fairness: keep a CONTINUOUS safe corridor — the next chunk must always have a
+  // passable lane within one step of the last one, so you're never forced into a
+  // 2-lane jump you can't make in time. The early game stays gentle (>=1 train max)
+  // so new players (kids) get a confident start before it ramps up.
+  const easy = G.dist < 900;
+  let cand = PATTERNS.filter(p => {
+    if (easy && p.filter(k => k === 'train').length > 1) return false;
+    return patternSafeLanes(p).some(l => Math.abs(l - G.lastSafe) <= 1);
+  });
+  if (!cand.length) cand = PATTERNS.filter(p => patternSafeLanes(p).some(l => Math.abs(l - G.lastSafe) <= 1));
+  if (!cand.length) cand = PATTERNS;
+  const pat = pick(cand);
+
   const safe = [];
   pat.forEach((kind, i) => {
     const lane = i - 1;
@@ -3321,12 +3335,15 @@ function spawnChunk() {
     if (kind !== 'train') safe.push(lane); // jumpable / rollable lanes are passable
     G.obstacles.push({
       kind, lane, z: SPAWN_Z + rand(0, 60),
-      len: kind === 'train' ? rand(150, 260) : 26,
+      len: kind === 'train' ? rand(140, 215) : 26,
       hue: irand(0, 4),
-      vz: (kind === 'train' && Math.random() < 0.25) ? rand(70, 150) : 0, // some trains charge at you
+      // a few trains still charge, but slower & rarer so reactions stay fair
+      vz: (kind === 'train' && Math.random() < 0.12) ? rand(45, 90) : 0,
     });
   });
-  const safeLane = safe.length ? pick(safe) : 0;
+  // keep the corridor adjacent to where it was
+  const safeAdj = safe.filter(l => Math.abs(l - G.lastSafe) <= 1);
+  const safeLane = safeAdj.length ? pick(safeAdj) : (safe.length ? pick(safe) : 0);
   G.lastSafe = safeLane;
 
   // coin trails: straight lines, zigzags across lanes, or arcs over hurdles
@@ -3809,7 +3826,10 @@ function update(dt) {
   // obstacle collisions
   for (const o of G.obstacles) {
     if (o.hit) continue;
-    if (o.z < HITZ && o.z + o.len > -12 && Math.abs(o.lane - G.laneF) < 0.55) {
+    // lane half-width MUST stay below 0.5 so adjacent lanes' hit-boxes never
+    // overlap — otherwise you get clipped while 95% into the safe lane, and
+    // crossing between lanes becomes an unfair death trap.
+    if (o.z < HITZ && o.z + o.len > -12 && Math.abs(o.lane - G.laneF) < 0.45) {
       if (o.kind === 'ramp') {
         // SUPER JUMP! soar over everything and hoover up the sky coins
         o.hit = true;

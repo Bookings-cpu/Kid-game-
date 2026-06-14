@@ -226,7 +226,7 @@ window.R3D = (() => {
       g.add(post);
     }
     const board = new THREE.Mesh(new THREE.BoxGeometry(1.7, 0.42, 0.08),
-      new THREE.MeshStandardMaterial({ map: stripeTexCache, roughness: 0.8 }));
+      applyCurve(new THREE.MeshStandardMaterial({ map: stripeTexCache, roughness: 0.8 })));
     board.position.y = 0.72;
     board.castShadow = true;
     g.add(board);
@@ -250,7 +250,7 @@ window.R3D = (() => {
       g.add(post);
     }
     const sign = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.8, 0.1),
-      new THREE.MeshStandardMaterial({ map: duckTex }));
+      applyCurve(new THREE.MeshStandardMaterial({ map: duckTex })));
     sign.position.y = 2.2;
     sign.castShadow = true;
     g.add(sign);
@@ -277,8 +277,8 @@ window.R3D = (() => {
     if (!COIN_GEO) {
       COIN_GEO = new THREE.CylinderGeometry(0.36, 0.36, 0.1, 20); COIN_GEO.rotateX(Math.PI / 2);
       COIN_RIM = mat('#c8860a');
-      COIN_FACE = new THREE.MeshToonMaterial({ color: '#ffe14d', gradientMap: toonGrad(), emissive: new THREE.Color('#ffb300'), emissiveIntensity: 0.95 });
-      COIN_STAR = new THREE.MeshBasicMaterial({ color: '#fff6c8' });
+      COIN_FACE = applyCurve(new THREE.MeshToonMaterial({ color: '#ffe14d', gradientMap: toonGrad(), emissive: new THREE.Color('#ffb300'), emissiveIntensity: 0.95 }));
+      COIN_STAR = applyCurve(new THREE.MeshBasicMaterial({ color: '#fff6c8' }));
     }
     const g = new THREE.Group();
     const rim = new THREE.Mesh(COIN_GEO, COIN_RIM);
@@ -292,13 +292,8 @@ window.R3D = (() => {
       star.position.z = s * 1.04; star.rotation.z = 0.3; star.rotation.y = s > 0 ? 0 : Math.PI;
       g.add(star);
     }
-    // additive glow halo — fakes a bloom so coins read as bright and valuable
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({
-      map: glowTex('#ffe14d'), blending: THREE.AdditiveBlending, transparent: true,
-      depthWrite: false, opacity: 0.55,
-    }));
-    halo.scale.set(1.25, 1.25, 1);
-    g.add(halo);
+    // (the glow now comes from the emissive face + the canvas bloom pass — a
+    // billboard sprite halo couldn't follow the curved-world bend and floated)
     return g;
   }
   let GLOWTEX = {};
@@ -424,7 +419,7 @@ window.R3D = (() => {
       case 'geyser': {
         add(new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.42, 0.55, 9), cmat('#6b5a52')), 0, 0.28, 0);
         const puff = add(new THREE.Mesh(new THREE.SphereGeometry(0.2, 8, 6),
-          new THREE.MeshBasicMaterial({ color: 0xfff5eb, transparent: true, opacity: 0.7 })), 0, 0.75, 0);
+          applyCurve(new THREE.MeshBasicMaterial({ color: 0xfff5eb, transparent: true, opacity: 0.7 }))), 0, 0.75, 0);
         puff.userData.puff = true;
         break;
       }
@@ -447,7 +442,7 @@ window.R3D = (() => {
       arm.position.set(s * 0.5, 0.1, 0);
       g.add(arm);
       const disc = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.02, 10),
-        new THREE.MeshBasicMaterial({ color: 0xdce4f0, transparent: true, opacity: 0.45 }));
+        applyCurve(new THREE.MeshBasicMaterial({ color: 0xdce4f0, transparent: true, opacity: 0.45 })));
       disc.position.set(s * 0.68, 0.16, 0);
       g.add(disc);
       rotors.push(disc);
@@ -863,7 +858,7 @@ window.R3D = (() => {
       } while (fsz > 18);
       sx.fillText('RASCAL EXPRESS', 256, 66);
       const sign = new THREE.Mesh(new THREE.PlaneGeometry(3.5, 0.88),
-        new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signC), transparent: true }));
+        applyCurve(new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(signC), transparent: true })));
       sign.position.set(0, 3.78, 0.32);
       gg.add(sign);
       gg.userData.amb = { side: 0, i, spacing: 26, x: 0 };

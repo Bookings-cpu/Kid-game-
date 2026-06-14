@@ -1240,8 +1240,27 @@ const PATTERNS = [
   [null, 'bar', null], ['hurdle', null, 'hurdle'],
 ];
 
+// lanes a pattern leaves passable (empty, or jumpable/rollable — not a train)
+function patternSafeLanes(p) {
+  const s = [];
+  p.forEach((kind, i) => { if (!kind || kind !== 'train') s.push(i - 1); });
+  return s;
+}
+
 function spawnChunk() {
-  const pat = pick(PATTERNS);
+  // Fairness: keep a CONTINUOUS safe corridor — the next chunk must always have a
+  // passable lane within one step of the last one, so you're never forced into a
+  // 2-lane jump you can't make in time. The early game stays gentle (>=1 train max)
+  // so new players (kids) get a confident start before it ramps up.
+  const easy = G.dist < 900;
+  let cand = PATTERNS.filter(p => {
+    if (easy && p.filter(k => k === 'train').length > 1) return false;
+    return patternSafeLanes(p).some(l => Math.abs(l - G.lastSafe) <= 1);
+  });
+  if (!cand.length) cand = PATTERNS.filter(p => patternSafeLanes(p).some(l => Math.abs(l - G.lastSafe) <= 1));
+  if (!cand.length) cand = PATTERNS;
+  const pat = pick(cand);
+
   const safe = [];
   pat.forEach((kind, i) => {
     const lane = i - 1;
@@ -1249,12 +1268,15 @@ function spawnChunk() {
     if (kind !== 'train') safe.push(lane); // jumpable / rollable lanes are passable
     G.obstacles.push({
       kind, lane, z: SPAWN_Z + rand(0, 60),
-      len: kind === 'train' ? rand(150, 260) : 26,
+      len: kind === 'train' ? rand(140, 215) : 26,
       hue: irand(0, 4),
-      vz: (kind === 'train' && Math.random() < 0.25) ? rand(70, 150) : 0, // some trains charge at you
+      // a few trains still charge, but slower & rarer so reactions stay fair
+      vz: (kind === 'train' && Math.random() < 0.12) ? rand(45, 90) : 0,
     });
   });
-  const safeLane = safe.length ? pick(safe) : 0;
+  // keep the corridor adjacent to where it was
+  const safeAdj = safe.filter(l => Math.abs(l - G.lastSafe) <= 1);
+  const safeLane = safeAdj.length ? pick(safeAdj) : (safe.length ? pick(safe) : 0);
   G.lastSafe = safeLane;
 
   // coin trails: straight lines, zigzags across lanes, or arcs over hurdles
@@ -1737,7 +1759,10 @@ function update(dt) {
   // obstacle collisions
   for (const o of G.obstacles) {
     if (o.hit) continue;
-    if (o.z < HITZ && o.z + o.len > -12 && Math.abs(o.lane - G.laneF) < 0.55) {
+    // lane half-width MUST stay below 0.5 so adjacent lanes' hit-boxes never
+    // overlap — otherwise you get clipped while 95% into the safe lane, and
+    // crossing between lanes becomes an unfair death trap.
+    if (o.z < HITZ && o.z + o.len > -12 && Math.abs(o.lane - G.laneF) < 0.45) {
       if (o.kind === 'ramp') {
         // SUPER JUMP! soar over everything and hoover up the sky coins
         o.hit = true;
