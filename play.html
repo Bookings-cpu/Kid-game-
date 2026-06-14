@@ -868,18 +868,32 @@ window.R3D = (() => {
   const MATS = {};
   const cmat = (color) => (MATS[color] = MATS[color] || mat(color));
 
-  // procedural speckle textures give big flat surfaces real grain
+  // procedural hand-painted textures: low-freq soft blotches + speckle bake
+  // painted depth into big flat surfaces (the look top runners get from texture
+  // art rather than real-time lighting).
   function noiseTex(base, dots, n) {
     const c = document.createElement('canvas');
-    c.width = c.height = 128;
+    c.width = c.height = 256;
     const x = c.getContext('2d');
     x.fillStyle = `rgb(${base},${base},${base})`;
-    x.fillRect(0, 0, 128, 128);
+    x.fillRect(0, 0, 256, 256);
+    // low-frequency painted blotches (soft tonal variation)
+    for (let i = 0; i < 26; i++) {
+      const px = (i * 71.3) % 256, py = (i * 113.7) % 256;
+      const r = 24 + (i * 17) % 60;
+      const v = base + ((i * 53) % 36) - 18;
+      const g = x.createRadialGradient(px, py, 0, px, py, r);
+      g.addColorStop(0, `rgba(${v},${v},${v},0.5)`);
+      g.addColorStop(1, `rgba(${v},${v},${v},0)`);
+      x.fillStyle = g;
+      x.beginPath(); x.arc(px, py, r, 0, 7); x.fill();
+    }
+    // fine speckle grain
     for (let i = 0; i < n; i++) {
       const v = dots + ((i * 37) % 30) - 15;
       x.fillStyle = `rgb(${v},${v},${v})`;
       x.beginPath();
-      x.arc((i * 53.7) % 128, (i * 91.3) % 128, 1 + (i % 3), 0, 7);
+      x.arc((i * 53.7) % 256, (i * 91.3) % 256, 1 + (i % 3), 0, 7);
       x.fill();
     }
     const t = new THREE.CanvasTexture(c);
