@@ -166,6 +166,7 @@ function defaultSave() {
     pets: [],
     activePet: '',
     dailyRun: { date: '', best: 0 },
+    spin: { last: '' },
     seenHowto: false,
     stats: { runs: 0, totalCoins: 0, totalDist: 0, jumps: 0, slides: 0, powerups: 0 },
   };
@@ -221,6 +222,8 @@ let S = (() => {
   if (!d.dailyRun || typeof d.dailyRun !== 'object') d.dailyRun = fresh.dailyRun;
   d.dailyRun.date = typeof d.dailyRun.date === 'string' ? d.dailyRun.date : '';
   d.dailyRun.best = num(d.dailyRun.best, 0);
+  if (!d.spin || typeof d.spin !== 'object') d.spin = fresh.spin;
+  d.spin.last = typeof d.spin.last === 'string' ? d.spin.last : '';
   return d;
 })();
 
@@ -384,6 +387,106 @@ function doOpenBox() {
   refreshBalances();
 }
 
+/* ============================== lucky spin (daily wheel) ============================== */
+// 8 wedges — match the wheel colours; weighted so the jackpot is rare.
+const SPIN_PRIZES = [
+  { label: '50',  col: '#ff5e5e', w: 18, apply: () => { S.coins += 50; return '+50 coins!'; } },
+  { label: '100', col: '#ffd23e', w: 16, apply: () => { S.coins += 100; return '+100 coins!'; } },
+  { label: 'BOX', col: '#5ad845', w: 11, apply: () => { S.boxes += 1; return 'A Mystery Box! 🎁'; } },
+  { label: '200', col: '#54a9ff', w: 12, apply: () => { S.coins += 200; return '+200 coins!'; } },
+  { label: 'BOARD', col: '#ff9a3c', w: 9, apply: () => { S.hoverboards += 1; return 'A Hoverboard! 🛹'; } },
+  { label: '75',  col: '#b06cff', w: 16, apply: () => { S.coins += 75; return '+75 coins!'; } },
+  { label: 'JACKPOT', col: '#ff6ec4', w: 4, apply: () => { S.coins += 1000; return '💰 JACKPOT! +1,000!'; } },
+  { label: '+SPIN', col: '#37b6ff', w: 14, apply: () => { spinFreebie = true; return 'A FREE spin! 🎡'; } },
+];
+let spinAngle = 0, spinBusy = false, spinFreebie = false;
+
+function spinReady() { return S.spin.last !== todayStr(); }
+function refreshSpinBadge() { $('spin-badge').classList.toggle('hidden', !spinReady()); }
+
+function drawWheel() {
+  const c = $('spin-wheel'); if (!c) return;
+  const x = c.getContext('2d'); const S2 = c.width, R = S2 / 2 - 6, cx = S2 / 2, cy = S2 / 2;
+  x.clearRect(0, 0, S2, S2);
+  x.save(); x.translate(cx, cy); x.rotate(spinAngle);
+  const n = SPIN_PRIZES.length, seg = (Math.PI * 2) / n;
+  for (let i = 0; i < n; i++) {
+    const a0 = -Math.PI / 2 + i * seg, a1 = a0 + seg;
+    x.beginPath(); x.moveTo(0, 0); x.arc(0, 0, R, a0, a1); x.closePath();
+    x.fillStyle = SPIN_PRIZES[i].col; x.fill();
+    x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = 2; x.stroke();
+    // label
+    x.save(); x.rotate(a0 + seg / 2); x.translate(R * 0.62, 0);
+    x.rotate(Math.PI / 2);
+    x.fillStyle = '#3a2410'; x.font = '800 ' + Math.round(S2 * 0.066) + 'px "Baloo 2","Comic Sans MS",sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(SPIN_PRIZES[i].label, 0, 0);
+    x.restore();
+  }
+  x.restore();
+  // hub
+  x.beginPath(); x.arc(cx, cy, R * 0.13, 0, 7); x.fillStyle = '#fff'; x.fill();
+  x.strokeStyle = '#5b3a00'; x.lineWidth = 3; x.stroke();
+}
+
+function openSpin() {
+  $('mod-spin').classList.remove('hidden');
+  $('spin-result').textContent = '';
+  drawWheel();
+  refreshSpinButtons();
+}
+function refreshSpinButtons() {
+  const free = spinReady() || spinFreebie;
+  $('btn-spin-go').classList.toggle('hidden', !free || spinBusy);
+  $('btn-spin-go').textContent = spinFreebie ? 'SPIN AGAIN!' : 'SPIN — FREE!';
+  $('btn-spin-ad').classList.toggle('hidden', free || spinBusy);
+}
+
+function doSpin(consumeFree) {
+  if (spinBusy) return;
+  if (consumeFree) {
+    if (spinFreebie) spinFreebie = false;
+    else if (spinReady()) { S.spin.last = todayStr(); save(); }
+    else return;
+  }
+  spinBusy = true;
+  refreshSpinButtons();
+  refreshSpinBadge();
+  $('spin-result').textContent = '';
+  // weighted target wedge
+  const total = SPIN_PRIZES.reduce((s, p) => s + p.w, 0);
+  let roll = Math.random() * total, idx = 0;
+  for (let i = 0; i < SPIN_PRIZES.length; i++) { roll -= SPIN_PRIZES[i].w; if (roll <= 0) { idx = i; break; } }
+  const n = SPIN_PRIZES.length, seg = (Math.PI * 2) / n;
+  // rotation so wedge idx centre lands under the top pointer, plus full turns
+  const base = spinAngle % (Math.PI * 2);
+  const target = (Math.PI * 2) * 6 - (idx * seg + seg / 2) + (Math.random() - 0.5) * seg * 0.6;
+  const start = spinAngle, delta = (target - base);
+  const dur = 3600, t0 = performance.now();
+  AudioSys.sfx('powerup');
+  function tick(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3); // ease-out cubic
+    spinAngle = start + delta * e;
+    drawWheel();
+    if (p < 1) { requestAnimationFrame(tick); }
+    else {
+      const prize = SPIN_PRIZES[idx];
+      const msg = prize.apply();
+      save();
+      $('spin-result').textContent = msg;
+      AudioSys.sfx(prize.label === 'JACKPOT' ? 'mission' : 'buy');
+      if (prize.label === 'JACKPOT' && navigator.vibrate) navigator.vibrate([60, 40, 80]);
+      toast(msg, true);
+      spinBusy = false;
+      refreshBalances();
+      refreshSpinButtons();
+      refreshSpinBadge();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
 /* ============================== audio ============================== */
 const AudioSys = {
   ctx: null,
@@ -500,6 +603,7 @@ function showScreen(name) {
     refreshBalances();
     drawMenuChar();
     refreshMissionBadge();
+    refreshSpinBadge();
     $('daily-best').textContent = S.dailyRun.date === todayStr()
       ? `Best today: ${fmt(S.dailyRun.best)}`
       : 'NEW track today!';
@@ -3246,6 +3350,10 @@ for (const b of document.querySelectorAll('.btn-back')) {
 bind('btn-pause', pauseGame);
 bind('btn-board', activateBoard);
 bind('btn-boxes', openBoxModal);
+bind('btn-spin', openSpin);
+bind('btn-spin-go', () => doSpin(true));
+bind('btn-spin-ad', () => { openAd(() => doSpin(false)); });
+bind('btn-spin-close', () => $('mod-spin').classList.add('hidden'));
 bind('btn-box-open', doOpenBox);
 bind('btn-box-buy', () => {
   if (S.coins < BOX_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }

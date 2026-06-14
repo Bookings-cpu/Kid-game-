@@ -40,10 +40,30 @@ window.R3D = (() => {
     }
     return TOON_GRAD;
   }
+  // Subway-Surfers-style "curved world": a shared uniform bends every world
+  // material's vertices down with distance, so the track rolls over the horizon.
+  const CURVE = { value: 0.006 };
+  function applyCurve(material) {
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uCurve = CURVE;
+      shader.vertexShader = 'uniform float uCurve;\n' + shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `vec4 mvPosition = vec4( transformed, 1.0 );
+         #ifdef USE_INSTANCING
+           mvPosition = instanceMatrix * mvPosition;
+         #endif
+         mvPosition = modelViewMatrix * mvPosition;
+         mvPosition.y -= uCurve * mvPosition.z * mvPosition.z;
+         gl_Position = projectionMatrix * mvPosition;`
+      );
+    };
+    material.customProgramCacheKey = () => 'curved';
+    return material;
+  }
   const mat = (color, opts) => {
     const o = Object.assign({}, opts || {});
     delete o.roughness; delete o.metalness;
-    return new THREE.MeshToonMaterial(Object.assign({ color, gradientMap: toonGrad() }, o));
+    return applyCurve(new THREE.MeshToonMaterial(Object.assign({ color, gradientMap: toonGrad() }, o)));
   };
   const MATS = {};
   const cmat = (color) => (MATS[color] = MATS[color] || mat(color));
@@ -420,7 +440,7 @@ window.R3D = (() => {
   }
   let FACE = null;
 
-  const OUTLINE = new THREE.MeshBasicMaterial({ color: 0x241a2e, side: THREE.BackSide });
+  const OUTLINE = applyCurve(new THREE.MeshBasicMaterial({ color: 0x241a2e, side: THREE.BackSide }));
   function makeChar(def) {
     const g = new THREE.Group();
     // cartoon outline: an inflated black backside shell around the body silhouette
@@ -587,7 +607,7 @@ window.R3D = (() => {
 
     const grassMap = noiseTex(236, 205, 420);
     grassMap.repeat.set(70, 46);
-    ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 200), mat('#5fbe54', { map: grassMap }));
+    ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 200, 1, 80), mat('#5fbe54', { map: grassMap }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.z = -60;
     ground.receiveShadow = true;
@@ -595,7 +615,7 @@ window.R3D = (() => {
 
     const gravelMap = noiseTex(228, 188, 520);
     gravelMap.repeat.set(5, 46);
-    trackBed = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.6, 0.12, 70), mat('#a08d7c', { map: gravelMap }));
+    trackBed = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.6, 0.12, 70, 1, 1, 70), mat('#a08d7c', { map: gravelMap }));
     trackBed.position.set(0, 0.01, -28);
     trackBed.receiveShadow = true;
     scene.add(trackBed);
@@ -603,7 +623,7 @@ window.R3D = (() => {
     // rails
     for (const lane of [-1, 0, 1]) {
       for (const off of [-0.42, 0.42]) {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 70),
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 70, 1, 1, 70),
           mat('#e8eef6', { metalness: 0.8, roughness: 0.3 }));
         rail.position.set(lane * LANE + off, 0.12, -28);
         scene.add(rail);
@@ -627,7 +647,7 @@ window.R3D = (() => {
       posts.push(post);
     }
     for (const side of [-1, 1]) {
-      const railF = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 70), cmat('#faf6eb'));
+      const railF = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 70, 1, 1, 70), cmat('#faf6eb'));
       railF.position.set(side * (LANE * 1.78), 0.5, -28);
       scene.add(railF);
     }

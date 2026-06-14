@@ -142,6 +142,22 @@ button { font-family:inherit; }
   border-radius:30px;
 }
 .btn-daily small { font-weight:700; opacity:.9; }
+.menu-cta-row { display:flex; gap:8px; z-index:1; width:min(86vw,330px); }
+.menu-cta-row .btn-daily { flex:1; min-width:0; }
+.btn-spin {
+  background:linear-gradient(180deg,#ffd23e,#f0a000); color:#5b3a00; font-size:15px;
+  padding:9px 16px; border-radius:30px; position:relative; flex-shrink:0;
+}
+.btn-spin .ico { vertical-align:-0.26em; }
+/* lucky spin modal */
+.spin-stage { position:relative; width:min(72vw,280px); height:min(72vw,280px); }
+#spin-wheel { width:100%; height:100%; filter:drop-shadow(0 6px 10px rgba(0,0,0,.4)); }
+.spin-pointer {
+  position:absolute; top:-6px; left:50%; transform:translateX(-50%); z-index:2;
+  width:0; height:0; border-left:13px solid transparent; border-right:13px solid transparent;
+  border-top:22px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.4));
+}
+.spin-result { font-size:20px; font-weight:900; color:#ffd23e; min-height:26px; text-shadow:0 2px 0 rgba(0,0,0,.3); }
 .badge {
   position:absolute; top:-6px; right:-6px; background:#ff3b3b; width:24px; height:24px; border-radius:50%;
   font-size:15px; display:flex; align-items:center; justify-content:center; animation:pulse 1s infinite;
@@ -466,6 +482,18 @@ button { font-family:inherit; }
 <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="9.2"/><path d="M9.2 9.4a2.8 2.8 0 0 1 5.4 1c0 1.9-2.6 2.2-2.6 3.9"/><circle cx="12" cy="17.4" r=".4" fill="currentColor" stroke-width="1.4"/>
 </symbol>
+<symbol id="i-wheel" viewBox="0 0 24 24">
+  <circle cx="12" cy="12" r="9.6" fill="#fff" stroke="#5b3a00" stroke-width="1.4"/>
+  <path d="M12 12 L12 2.4 A9.6 9.6 0 0 1 18.8 6.2 Z" fill="#ff5e5e"/>
+  <path d="M12 12 L18.8 6.2 A9.6 9.6 0 0 1 21.6 12 Z" fill="#ffd23e"/>
+  <path d="M12 12 L21.6 12 A9.6 9.6 0 0 1 18.8 17.8 Z" fill="#5ad845"/>
+  <path d="M12 12 L18.8 17.8 A9.6 9.6 0 0 1 12 21.6 Z" fill="#54a9ff"/>
+  <path d="M12 12 L12 21.6 A9.6 9.6 0 0 1 5.2 17.8 Z" fill="#ff9a3c"/>
+  <path d="M12 12 L5.2 17.8 A9.6 9.6 0 0 1 2.4 12 Z" fill="#b06cff"/>
+  <path d="M12 12 L2.4 12 A9.6 9.6 0 0 1 5.2 6.2 Z" fill="#ff6ec4"/>
+  <path d="M12 12 L5.2 6.2 A9.6 9.6 0 0 1 12 2.4 Z" fill="#37b6ff"/>
+  <circle cx="12" cy="12" r="2.2" fill="#fff" stroke="#5b3a00" stroke-width="1.2"/>
+</symbol>
 </svg>
 
 <!-- ================= MAIN MENU ================= -->
@@ -516,7 +544,10 @@ button { font-family:inherit; }
     <canvas id="menu-char" width="180" height="180"></canvas>
   </div>
   <button id="btn-play" class="btn btn-big btn-play">▶ PLAY!</button>
-  <button id="btn-daily-run" class="btn btn-daily">📅 Daily Run · <small id="daily-best"></small></button>
+  <div class="menu-cta-row">
+    <button id="btn-daily-run" class="btn btn-daily">📅 Daily Run · <small id="daily-best"></small></button>
+    <button id="btn-spin" class="btn btn-spin"><svg class="ico"><use href="#i-wheel"/></svg> Spin<span id="spin-badge" class="badge hidden">!</span></button>
+  </div>
   <div class="menu-row">
     <button id="btn-shop" class="btn btn-round" title="Shop"><svg class="ico-btn"><use href="#i-cart"/></svg><small>Shop</small></button>
     <button id="btn-chars" class="btn btn-round" title="Heroes"><svg class="ico-btn"><use href="#i-hero"/></svg><small>Heroes</small></button>
@@ -700,6 +731,21 @@ button { font-family:inherit; }
   </div>
 </div>
 
+<!-- ================= LUCKY SPIN ================= -->
+<div id="mod-spin" class="overlay hidden">
+  <div class="dialog">
+    <h2><svg class="ico-ttl"><use href="#i-wheel"/></svg> Lucky Spin!</h2>
+    <div class="spin-stage">
+      <div class="spin-pointer"></div>
+      <canvas id="spin-wheel" width="280" height="280"></canvas>
+    </div>
+    <div id="spin-result" class="spin-result"></div>
+    <button id="btn-spin-go" class="btn btn-big btn-yellow">SPIN!</button>
+    <button id="btn-spin-ad" class="btn btn-big btn-green hidden">🎬 Extra spin</button>
+    <button id="btn-spin-close" class="btn btn-link">Close</button>
+  </div>
+</div>
+
 <!-- ================= MYSTERY BOX ================= -->
 <div id="mod-box" class="overlay hidden">
   <div class="dialog">
@@ -794,10 +840,30 @@ window.R3D = (() => {
     }
     return TOON_GRAD;
   }
+  // Subway-Surfers-style "curved world": a shared uniform bends every world
+  // material's vertices down with distance, so the track rolls over the horizon.
+  const CURVE = { value: 0.006 };
+  function applyCurve(material) {
+    material.onBeforeCompile = (shader) => {
+      shader.uniforms.uCurve = CURVE;
+      shader.vertexShader = 'uniform float uCurve;\n' + shader.vertexShader.replace(
+        '#include <project_vertex>',
+        `vec4 mvPosition = vec4( transformed, 1.0 );
+         #ifdef USE_INSTANCING
+           mvPosition = instanceMatrix * mvPosition;
+         #endif
+         mvPosition = modelViewMatrix * mvPosition;
+         mvPosition.y -= uCurve * mvPosition.z * mvPosition.z;
+         gl_Position = projectionMatrix * mvPosition;`
+      );
+    };
+    material.customProgramCacheKey = () => 'curved';
+    return material;
+  }
   const mat = (color, opts) => {
     const o = Object.assign({}, opts || {});
     delete o.roughness; delete o.metalness;
-    return new THREE.MeshToonMaterial(Object.assign({ color, gradientMap: toonGrad() }, o));
+    return applyCurve(new THREE.MeshToonMaterial(Object.assign({ color, gradientMap: toonGrad() }, o)));
   };
   const MATS = {};
   const cmat = (color) => (MATS[color] = MATS[color] || mat(color));
@@ -1174,7 +1240,7 @@ window.R3D = (() => {
   }
   let FACE = null;
 
-  const OUTLINE = new THREE.MeshBasicMaterial({ color: 0x241a2e, side: THREE.BackSide });
+  const OUTLINE = applyCurve(new THREE.MeshBasicMaterial({ color: 0x241a2e, side: THREE.BackSide }));
   function makeChar(def) {
     const g = new THREE.Group();
     // cartoon outline: an inflated black backside shell around the body silhouette
@@ -1341,7 +1407,7 @@ window.R3D = (() => {
 
     const grassMap = noiseTex(236, 205, 420);
     grassMap.repeat.set(70, 46);
-    ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 200), mat('#5fbe54', { map: grassMap }));
+    ground = new THREE.Mesh(new THREE.PlaneGeometry(300, 200, 1, 80), mat('#5fbe54', { map: grassMap }));
     ground.rotation.x = -Math.PI / 2;
     ground.position.z = -60;
     ground.receiveShadow = true;
@@ -1349,7 +1415,7 @@ window.R3D = (() => {
 
     const gravelMap = noiseTex(228, 188, 520);
     gravelMap.repeat.set(5, 46);
-    trackBed = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.6, 0.12, 70), mat('#a08d7c', { map: gravelMap }));
+    trackBed = new THREE.Mesh(new THREE.BoxGeometry(LANE * 3 + 1.6, 0.12, 70, 1, 1, 70), mat('#a08d7c', { map: gravelMap }));
     trackBed.position.set(0, 0.01, -28);
     trackBed.receiveShadow = true;
     scene.add(trackBed);
@@ -1357,7 +1423,7 @@ window.R3D = (() => {
     // rails
     for (const lane of [-1, 0, 1]) {
       for (const off of [-0.42, 0.42]) {
-        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 70),
+        const rail = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.09, 70, 1, 1, 70),
           mat('#e8eef6', { metalness: 0.8, roughness: 0.3 }));
         rail.position.set(lane * LANE + off, 0.12, -28);
         scene.add(rail);
@@ -1381,7 +1447,7 @@ window.R3D = (() => {
       posts.push(post);
     }
     for (const side of [-1, 1]) {
-      const railF = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 70), cmat('#faf6eb'));
+      const railF = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 70, 1, 1, 70), cmat('#faf6eb'));
       railF.position.set(side * (LANE * 1.78), 0.5, -28);
       scene.add(railF);
     }
@@ -1957,6 +2023,7 @@ function defaultSave() {
     pets: [],
     activePet: '',
     dailyRun: { date: '', best: 0 },
+    spin: { last: '' },
     seenHowto: false,
     stats: { runs: 0, totalCoins: 0, totalDist: 0, jumps: 0, slides: 0, powerups: 0 },
   };
@@ -2012,6 +2079,8 @@ let S = (() => {
   if (!d.dailyRun || typeof d.dailyRun !== 'object') d.dailyRun = fresh.dailyRun;
   d.dailyRun.date = typeof d.dailyRun.date === 'string' ? d.dailyRun.date : '';
   d.dailyRun.best = num(d.dailyRun.best, 0);
+  if (!d.spin || typeof d.spin !== 'object') d.spin = fresh.spin;
+  d.spin.last = typeof d.spin.last === 'string' ? d.spin.last : '';
   return d;
 })();
 
@@ -2175,6 +2244,106 @@ function doOpenBox() {
   refreshBalances();
 }
 
+/* ============================== lucky spin (daily wheel) ============================== */
+// 8 wedges — match the wheel colours; weighted so the jackpot is rare.
+const SPIN_PRIZES = [
+  { label: '50',  col: '#ff5e5e', w: 18, apply: () => { S.coins += 50; return '+50 coins!'; } },
+  { label: '100', col: '#ffd23e', w: 16, apply: () => { S.coins += 100; return '+100 coins!'; } },
+  { label: 'BOX', col: '#5ad845', w: 11, apply: () => { S.boxes += 1; return 'A Mystery Box! 🎁'; } },
+  { label: '200', col: '#54a9ff', w: 12, apply: () => { S.coins += 200; return '+200 coins!'; } },
+  { label: 'BOARD', col: '#ff9a3c', w: 9, apply: () => { S.hoverboards += 1; return 'A Hoverboard! 🛹'; } },
+  { label: '75',  col: '#b06cff', w: 16, apply: () => { S.coins += 75; return '+75 coins!'; } },
+  { label: 'JACKPOT', col: '#ff6ec4', w: 4, apply: () => { S.coins += 1000; return '💰 JACKPOT! +1,000!'; } },
+  { label: '+SPIN', col: '#37b6ff', w: 14, apply: () => { spinFreebie = true; return 'A FREE spin! 🎡'; } },
+];
+let spinAngle = 0, spinBusy = false, spinFreebie = false;
+
+function spinReady() { return S.spin.last !== todayStr(); }
+function refreshSpinBadge() { $('spin-badge').classList.toggle('hidden', !spinReady()); }
+
+function drawWheel() {
+  const c = $('spin-wheel'); if (!c) return;
+  const x = c.getContext('2d'); const S2 = c.width, R = S2 / 2 - 6, cx = S2 / 2, cy = S2 / 2;
+  x.clearRect(0, 0, S2, S2);
+  x.save(); x.translate(cx, cy); x.rotate(spinAngle);
+  const n = SPIN_PRIZES.length, seg = (Math.PI * 2) / n;
+  for (let i = 0; i < n; i++) {
+    const a0 = -Math.PI / 2 + i * seg, a1 = a0 + seg;
+    x.beginPath(); x.moveTo(0, 0); x.arc(0, 0, R, a0, a1); x.closePath();
+    x.fillStyle = SPIN_PRIZES[i].col; x.fill();
+    x.strokeStyle = 'rgba(255,255,255,.5)'; x.lineWidth = 2; x.stroke();
+    // label
+    x.save(); x.rotate(a0 + seg / 2); x.translate(R * 0.62, 0);
+    x.rotate(Math.PI / 2);
+    x.fillStyle = '#3a2410'; x.font = '800 ' + Math.round(S2 * 0.066) + 'px "Baloo 2","Comic Sans MS",sans-serif';
+    x.textAlign = 'center'; x.textBaseline = 'middle';
+    x.fillText(SPIN_PRIZES[i].label, 0, 0);
+    x.restore();
+  }
+  x.restore();
+  // hub
+  x.beginPath(); x.arc(cx, cy, R * 0.13, 0, 7); x.fillStyle = '#fff'; x.fill();
+  x.strokeStyle = '#5b3a00'; x.lineWidth = 3; x.stroke();
+}
+
+function openSpin() {
+  $('mod-spin').classList.remove('hidden');
+  $('spin-result').textContent = '';
+  drawWheel();
+  refreshSpinButtons();
+}
+function refreshSpinButtons() {
+  const free = spinReady() || spinFreebie;
+  $('btn-spin-go').classList.toggle('hidden', !free || spinBusy);
+  $('btn-spin-go').textContent = spinFreebie ? 'SPIN AGAIN!' : 'SPIN — FREE!';
+  $('btn-spin-ad').classList.toggle('hidden', free || spinBusy);
+}
+
+function doSpin(consumeFree) {
+  if (spinBusy) return;
+  if (consumeFree) {
+    if (spinFreebie) spinFreebie = false;
+    else if (spinReady()) { S.spin.last = todayStr(); save(); }
+    else return;
+  }
+  spinBusy = true;
+  refreshSpinButtons();
+  refreshSpinBadge();
+  $('spin-result').textContent = '';
+  // weighted target wedge
+  const total = SPIN_PRIZES.reduce((s, p) => s + p.w, 0);
+  let roll = Math.random() * total, idx = 0;
+  for (let i = 0; i < SPIN_PRIZES.length; i++) { roll -= SPIN_PRIZES[i].w; if (roll <= 0) { idx = i; break; } }
+  const n = SPIN_PRIZES.length, seg = (Math.PI * 2) / n;
+  // rotation so wedge idx centre lands under the top pointer, plus full turns
+  const base = spinAngle % (Math.PI * 2);
+  const target = (Math.PI * 2) * 6 - (idx * seg + seg / 2) + (Math.random() - 0.5) * seg * 0.6;
+  const start = spinAngle, delta = (target - base);
+  const dur = 3600, t0 = performance.now();
+  AudioSys.sfx('powerup');
+  function tick(now) {
+    const p = Math.min(1, (now - t0) / dur);
+    const e = 1 - Math.pow(1 - p, 3); // ease-out cubic
+    spinAngle = start + delta * e;
+    drawWheel();
+    if (p < 1) { requestAnimationFrame(tick); }
+    else {
+      const prize = SPIN_PRIZES[idx];
+      const msg = prize.apply();
+      save();
+      $('spin-result').textContent = msg;
+      AudioSys.sfx(prize.label === 'JACKPOT' ? 'mission' : 'buy');
+      if (prize.label === 'JACKPOT' && navigator.vibrate) navigator.vibrate([60, 40, 80]);
+      toast(msg, true);
+      spinBusy = false;
+      refreshBalances();
+      refreshSpinButtons();
+      refreshSpinBadge();
+    }
+  }
+  requestAnimationFrame(tick);
+}
+
 /* ============================== audio ============================== */
 const AudioSys = {
   ctx: null,
@@ -2291,6 +2460,7 @@ function showScreen(name) {
     refreshBalances();
     drawMenuChar();
     refreshMissionBadge();
+    refreshSpinBadge();
     $('daily-best').textContent = S.dailyRun.date === todayStr()
       ? `Best today: ${fmt(S.dailyRun.best)}`
       : 'NEW track today!';
@@ -5037,6 +5207,10 @@ for (const b of document.querySelectorAll('.btn-back')) {
 bind('btn-pause', pauseGame);
 bind('btn-board', activateBoard);
 bind('btn-boxes', openBoxModal);
+bind('btn-spin', openSpin);
+bind('btn-spin-go', () => doSpin(true));
+bind('btn-spin-ad', () => { openAd(() => doSpin(false)); });
+bind('btn-spin-close', () => $('mod-spin').classList.add('hidden'));
 bind('btn-box-open', doOpenBox);
 bind('btn-box-buy', () => {
   if (S.coins < BOX_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }

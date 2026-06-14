@@ -82,6 +82,18 @@
 <symbol id="i-help" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
   <circle cx="12" cy="12" r="9.2"/><path d="M9.2 9.4a2.8 2.8 0 0 1 5.4 1c0 1.9-2.6 2.2-2.6 3.9"/><circle cx="12" cy="17.4" r=".4" fill="currentColor" stroke-width="1.4"/>
 </symbol>
+<symbol id="i-wheel" viewBox="0 0 24 24">
+  <circle cx="12" cy="12" r="9.6" fill="#fff" stroke="#5b3a00" stroke-width="1.4"/>
+  <path d="M12 12 L12 2.4 A9.6 9.6 0 0 1 18.8 6.2 Z" fill="#ff5e5e"/>
+  <path d="M12 12 L18.8 6.2 A9.6 9.6 0 0 1 21.6 12 Z" fill="#ffd23e"/>
+  <path d="M12 12 L21.6 12 A9.6 9.6 0 0 1 18.8 17.8 Z" fill="#5ad845"/>
+  <path d="M12 12 L18.8 17.8 A9.6 9.6 0 0 1 12 21.6 Z" fill="#54a9ff"/>
+  <path d="M12 12 L12 21.6 A9.6 9.6 0 0 1 5.2 17.8 Z" fill="#ff9a3c"/>
+  <path d="M12 12 L5.2 17.8 A9.6 9.6 0 0 1 2.4 12 Z" fill="#b06cff"/>
+  <path d="M12 12 L2.4 12 A9.6 9.6 0 0 1 5.2 6.2 Z" fill="#ff6ec4"/>
+  <path d="M12 12 L5.2 6.2 A9.6 9.6 0 0 1 12 2.4 Z" fill="#37b6ff"/>
+  <circle cx="12" cy="12" r="2.2" fill="#fff" stroke="#5b3a00" stroke-width="1.2"/>
+</symbol>
 </svg>
 
 <!-- ================= MAIN MENU ================= -->
@@ -132,7 +144,10 @@
     <canvas id="menu-char" width="180" height="180"></canvas>
   </div>
   <button id="btn-play" class="btn btn-big btn-play">▶ PLAY!</button>
-  <button id="btn-daily-run" class="btn btn-daily">📅 Daily Run · <small id="daily-best"></small></button>
+  <div class="menu-cta-row">
+    <button id="btn-daily-run" class="btn btn-daily">📅 Daily Run · <small id="daily-best"></small></button>
+    <button id="btn-spin" class="btn btn-spin"><svg class="ico"><use href="#i-wheel"/></svg> Spin<span id="spin-badge" class="badge hidden">!</span></button>
+  </div>
   <div class="menu-row">
     <button id="btn-shop" class="btn btn-round" title="Shop"><svg class="ico-btn"><use href="#i-cart"/></svg><small>Shop</small></button>
     <button id="btn-chars" class="btn btn-round" title="Heroes"><svg class="ico-btn"><use href="#i-hero"/></svg><small>Heroes</small></button>
@@ -313,6 +328,21 @@
     <p class="gate-sub">Come back every day for bigger gifts!</p>
     <div id="daily-grid"></div>
     <button id="btn-daily-claim" class="btn btn-big btn-yellow">🎁 Claim!</button>
+  </div>
+</div>
+
+<!-- ================= LUCKY SPIN ================= -->
+<div id="mod-spin" class="overlay hidden">
+  <div class="dialog">
+    <h2><svg class="ico-ttl"><use href="#i-wheel"/></svg> Lucky Spin!</h2>
+    <div class="spin-stage">
+      <div class="spin-pointer"></div>
+      <canvas id="spin-wheel" width="280" height="280"></canvas>
+    </div>
+    <div id="spin-result" class="spin-result"></div>
+    <button id="btn-spin-go" class="btn btn-big btn-yellow">SPIN!</button>
+    <button id="btn-spin-ad" class="btn btn-big btn-green hidden">🎬 Extra spin</button>
+    <button id="btn-spin-close" class="btn btn-link">Close</button>
   </div>
 </div>
 

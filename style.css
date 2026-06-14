@@ -124,6 +124,22 @@ button { font-family:inherit; }
   border-radius:30px;
 }
 .btn-daily small { font-weight:700; opacity:.9; }
+.menu-cta-row { display:flex; gap:8px; z-index:1; width:min(86vw,330px); }
+.menu-cta-row .btn-daily { flex:1; min-width:0; }
+.btn-spin {
+  background:linear-gradient(180deg,#ffd23e,#f0a000); color:#5b3a00; font-size:15px;
+  padding:9px 16px; border-radius:30px; position:relative; flex-shrink:0;
+}
+.btn-spin .ico { vertical-align:-0.26em; }
+/* lucky spin modal */
+.spin-stage { position:relative; width:min(72vw,280px); height:min(72vw,280px); }
+#spin-wheel { width:100%; height:100%; filter:drop-shadow(0 6px 10px rgba(0,0,0,.4)); }
+.spin-pointer {
+  position:absolute; top:-6px; left:50%; transform:translateX(-50%); z-index:2;
+  width:0; height:0; border-left:13px solid transparent; border-right:13px solid transparent;
+  border-top:22px solid #fff; filter:drop-shadow(0 2px 2px rgba(0,0,0,.4));
+}
+.spin-result { font-size:20px; font-weight:900; color:#ffd23e; min-height:26px; text-shadow:0 2px 0 rgba(0,0,0,.3); }
 .badge {
   position:absolute; top:-6px; right:-6px; background:#ff3b3b; width:24px; height:24px; border-radius:50%;
   font-size:15px; display:flex; align-items:center; justify-content:center; animation:pulse 1s infinite;
