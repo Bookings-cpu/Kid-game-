@@ -3010,6 +3010,62 @@ function drawPlayer() {
   }
 }
 
+/* ---------- per-world ambient weather (overlay particles) ---------- */
+// 0 Meadows: drifting petals · 1 Desert: none · 2 Snow: falling flakes
+// 3 Candy: floating sparkles · 4 Volcano: rising embers
+const AMBIENT_CFG = [
+  { rate: 0.7, vy: [25, 55],  vx: [-20, 20], size: [2.5, 5], cols: ['#ff9ad1', '#ffd23e', '#b8f547'], shape: 'petal' },
+  { rate: 0,   vy: [0, 0],    vx: [0, 0],    size: [0, 0],   cols: ['#fff'], shape: 'dot' },
+  { rate: 2.4, vy: [35, 75],  vx: [-25, 25], size: [2, 4.8], cols: ['#ffffff', '#eaf3ff'], shape: 'dot' },
+  { rate: 1.4, vy: [-12, 12], vx: [-14, 14], size: [1.5, 3.5], cols: ['#fff', '#ffd6ec', '#b8f0ff'], shape: 'spark' },
+  { rate: 1.9, vy: [-70, -35],vx: [-18, 18], size: [1.5, 4], cols: ['#ff9a3c', '#ffce3a', '#ff5e5e'], shape: 'ember' },
+];
+let ambientFX = [];
+function updateAmbientFX(theme, ft) {
+  const cfg = AMBIENT_CFG[theme] || AMBIENT_CFG[0];
+  const dt = 1 / 60;
+  // spawn
+  if (cfg.rate > 0 && ambientFX.length < 70 && Math.random() < cfg.rate) {
+    const up = cfg.vy[0] < 0;
+    ambientFX.push({
+      x: rand(0, W), y: up ? H + 10 : -10,
+      vx: rand(cfg.vx[0], cfg.vx[1]), vy: rand(cfg.vy[0], cfg.vy[1]),
+      size: rand(cfg.size[0], cfg.size[1]), col: pick(cfg.cols),
+      shape: cfg.shape, rot: rand(0, 6.28), spin: rand(-3, 3), ph: rand(0, 6.28), life: 1,
+    });
+  }
+  for (const p of ambientFX) {
+    p.ph += dt * 2;
+    p.x += (p.vx + Math.sin(p.ph) * 14) * dt;
+    p.y += p.vy * dt;
+    p.rot += p.spin * dt;
+    if (p.shape === 'ember' || p.shape === 'spark') p.life = 0.6 + 0.4 * Math.sin(p.ph * 2);
+  }
+  ambientFX = ambientFX.filter(p => p.y > -30 && p.y < H + 30);
+  // draw
+  for (const p of ambientFX) {
+    ctx.globalAlpha = (p.shape === 'ember' || p.shape === 'spark') ? p.life * 0.85 : 0.8;
+    ctx.fillStyle = p.col;
+    if (p.shape === 'petal') {
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.beginPath(); ctx.ellipse(0, 0, p.size, p.size * 0.5, 0, 0, 7); ctx.fill();
+      ctx.restore();
+    } else if (p.shape === 'spark') {
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot);
+      ctx.fillRect(-p.size, -p.size * 0.25, p.size * 2, p.size * 0.5);
+      ctx.fillRect(-p.size * 0.25, -p.size, p.size * 0.5, p.size * 2);
+      ctx.restore();
+    } else {
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, 7); ctx.fill();
+      if (p.shape === 'ember') {
+        ctx.globalAlpha = p.life * 0.25;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size * 2.2, 0, 7); ctx.fill();
+      }
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+
 /* ---------- 3D frame: WebGL world + 2D overlay juice ---------- */
 function render3D() {
   // colours follow the same theme/day cycle as the 2D renderer
@@ -3067,6 +3123,9 @@ function render3D() {
       ctx.closePath(); ctx.fill();
     }
   }
+
+  // per-world ambient weather — makes each biome feel alive
+  updateAmbientFX(i0 % THEMES.length, ft);
 
   // particles
   for (const p of G.parts) {
