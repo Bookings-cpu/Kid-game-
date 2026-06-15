@@ -19,3 +19,5 @@ android/app/debug/
 *.jks
 keystore.properties
 release-signing.properties
+*SECRET*
+*.aab
