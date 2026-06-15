@@ -964,7 +964,7 @@ window.R3D = (() => {
 
   let renderer, scene, camera, W = 0, H = 0;
   let ground, trackBed;
-  let skyCanvas, skyCtx, skyTexture, sunSprite;
+  let skyCanvas, skyCtx, skyTexture, sunSprite, cloudMat;
   const sleepers = [], posts = [], railMats = [];
   const clouds = [], ambient = [], poles = [], gantries = [];
   let player, guard, shieldBall, board, blob;
@@ -1185,11 +1185,11 @@ window.R3D = (() => {
   }
 
   const duckTex = spriteTex((x, s) => {
-    x.fillStyle = '#e8443a'; x.fillRect(0, 0, s, s / 2);
+    x.fillStyle = '#e8443a'; x.fillRect(0, 0, s, s); // whole sign red (was half → black lower half)
     x.fillStyle = '#fff';
-    x.font = `800 ${s * 0.3}px "Baloo 2","Comic Sans MS",sans-serif`;
+    x.font = `800 ${s * 0.34}px "Baloo 2","Comic Sans MS",sans-serif`;
     x.textAlign = 'center'; x.textBaseline = 'middle';
-    x.fillText('DUCK!', s / 2, s / 4);
+    x.fillText('DUCK!', s / 2, s / 2);
   }, 128);
 
   function makeBar() {
@@ -1435,11 +1435,21 @@ window.R3D = (() => {
   let FACE = null;
 
   const OUTLINE = applyCurve(new THREE.MeshBasicMaterial({ color: 0x140e1c, side: THREE.BackSide }));
+  // inverted-hull outline clone of a mesh, so EVERY limb gets its own dark edge
+  // (not just the body) — the silhouette then reads as one connected character.
+  function outlineOf(mesh, inflate) {
+    const o = new THREE.Mesh(mesh.geometry, OUTLINE);
+    o.position.copy(mesh.position);
+    o.quaternion.copy(mesh.quaternion);
+    o.scale.copy(mesh.scale).multiplyScalar(inflate);
+    return o;
+  }
   function makeChar(def) {
     const g = new THREE.Group();
-    // cartoon outline: an inflated near-black backside shell around the body silhouette
+    // cartoon outline: an inflated near-black backside shell, inflated *proportionally*
+    // to the body so it hugs evenly instead of reading as a fat hoop
     const outline = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 14), OUTLINE);
-    outline.scale.set(1.12, 1.2, 0.97);
+    outline.scale.set(1.08, 1.17, 0.92);
     outline.position.y = 0.95;
     g.add(outline);
     const body = new THREE.Mesh(new THREE.SphereGeometry(0.55, 18, 14), mat(def.body));
@@ -1460,11 +1470,13 @@ window.R3D = (() => {
     // hat / accessory
     switch (def.hat) {
       case 'cap': {
-        const top = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('#e8443a'));
+        const top = new THREE.Mesh(new THREE.SphereGeometry(0.4, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('#e23a30'));
         top.position.y = 1.46;
+        g.add(outlineOf(top, 1.1)); // dark edge so the red cap reads against an orange body
         g.add(top);
-        const brim = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.35), mat('#e8443a'));
+        const brim = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.06, 0.35), mat('#e23a30'));
         brim.position.set(0, 1.47, 0.4);
+        g.add(outlineOf(brim, 1.18));
         g.add(brim);
         break;
       }
@@ -1496,7 +1508,7 @@ window.R3D = (() => {
         break;
       case 'bolt': {
         const b = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.4, 0.08), mat('#ffe14d', { emissive: '#caa400', emissiveIntensity: 0.6 }));
-        b.position.y = 1.6;
+        b.position.y = 1.78; // sits above the head, not over the face
         b.rotation.z = 0.4;
         g.add(b);
         break;
@@ -1507,9 +1519,21 @@ window.R3D = (() => {
         g.add(h);
         break;
       }
+      case 'guardcap': { // dark peaked police cap — distinct chaser silhouette
+        const top = new THREE.Mesh(new THREE.SphereGeometry(0.42, 14, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat('#26304a'));
+        top.position.y = 1.46; top.scale.y = 0.72;
+        g.add(top);
+        const brim = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.06, 0.42), mat('#171f30'));
+        brim.position.set(0, 1.4, 0.42);
+        g.add(brim);
+        const badge = new THREE.Mesh(new THREE.CircleGeometry(0.07, 10), mat('#ffd23e', { emissive: '#caa400', emissiveIntensity: 0.6 }));
+        badge.position.set(0, 1.54, 0.33);
+        g.add(badge);
+        break;
+      }
     }
 
-    // limbs: pivoted capsules with shoe / mitten tips
+    // limbs: pivoted capsules with shoe / mitten tips — each gets its own outline
     const limbs = { hips: [], shoulders: [] };
     for (const s of [-1, 1]) {
       const hip = new THREE.Group();
@@ -1517,10 +1541,12 @@ window.R3D = (() => {
       const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.3, 4, 8), mat(def.body));
       leg.position.y = -0.22;
       leg.castShadow = true;
+      hip.add(outlineOf(leg, 1.28));
       hip.add(leg);
       const shoe = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), mat('#ffffff'));
       shoe.scale.set(1.1, 0.7, 1.6);
       shoe.position.set(0, -0.46, 0.06);
+      hip.add(outlineOf(shoe, 1.18));
       hip.add(shoe);
       const sole = new THREE.Mesh(new THREE.SphereGeometry(0.155, 10, 8), mat('#e8443a'));
       sole.scale.set(1.12, 0.4, 1.62);
@@ -1530,12 +1556,14 @@ window.R3D = (() => {
       limbs.hips.push(hip);
 
       const sh = new THREE.Group();
-      sh.position.set(s * 0.52, 1.05, 0);
-      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.26, 4, 8), mat(def.body));
-      arm.position.y = -0.2;
+      sh.position.set(s * 0.5, 1.05, 0.06); // a touch forward so the swing is visible
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.3, 4, 8), mat(def.body));
+      arm.position.y = -0.21;
+      sh.add(outlineOf(arm, 1.3));
       sh.add(arm);
-      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), mat(def.belly));
-      hand.position.y = -0.4;
+      const hand = new THREE.Mesh(new THREE.SphereGeometry(0.13, 10, 8), mat(def.belly));
+      hand.position.y = -0.42;
+      sh.add(outlineOf(hand, 1.22));
       sh.add(hand);
       g.add(sh);
       limbs.shoulders.push(sh);
@@ -1546,6 +1574,22 @@ window.R3D = (() => {
 
   function animateChar(g, o) {
     const { limbs, body } = g.userData;
+    // crash: tumble over backwards with limbs flailing (o.dying ramps 0 -> 1)
+    if (o.dying > 0) {
+      const t = o.dying;
+      g.scale.y = 1;
+      g.rotation.x = -1.4 * t;                       // fall onto his back
+      g.rotation.z = 0.5 * Math.sin(t * 9) * (1 - t); // wobble as he goes down
+      for (let i = 0; i < 2; i++) {
+        const hip = limbs.hips[i], sh = limbs.shoulders[i];
+        hip.visible = sh.visible = true;
+        hip.rotation.x = -1.0 * t + (i ? 1 : -1) * 0.4 * t;
+        sh.rotation.x = -2.4 * t;
+        sh.rotation.z = (i ? 1 : -1) * (0.25 + 1.9 * t);
+      }
+      body.scale.x = 1;
+      return;
+    }
     const squash = 1 - (o.slide || 0) * 0.45;
     g.scale.y = squash;
     g.rotation.z = (o.lean || 0) * 0.25;
@@ -1557,6 +1601,11 @@ window.R3D = (() => {
         hip.rotation.x = -1.3;
         sh.rotation.z = (i ? 1 : -1) * 2.5;
         sh.rotation.x = 0;
+      } else if (o.lunge > 0) {
+        // the guard reaching forward to grab you — not a celebratory jump
+        hip.rotation.x = ph * 1.05;
+        sh.rotation.z = (i ? 1 : -1) * 0.22;
+        sh.rotation.x = -1.5 - o.lunge * 0.7;
       } else {
         hip.rotation.x = ph * 0.95;
         sh.rotation.x = -ph * 0.8;
@@ -1651,8 +1700,16 @@ window.R3D = (() => {
     shieldBall.visible = false;
     scene.add(shieldBall);
 
-    board = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.1, 0.5),
-      mat('#54d8ff', { emissive: '#1f8fe0', emissiveIntensity: 0.8 }));
+    board = new THREE.Group();
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.16, 0.62),
+      mat('#3fd0ff', { emissive: '#1f8fe0', emissiveIntensity: 0.7 }));
+    board.add(outlineOf(deck, 1.06));
+    board.add(deck);
+    const underglow = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.06, 0.5),
+      new THREE.MeshBasicMaterial({ color: 0x7ff2ff, transparent: true, opacity: 0.6, blending: THREE.AdditiveBlending, depthWrite: false }));
+    underglow.position.y = -0.14;
+    board.add(underglow);
+    board.userData.glow = underglow;
     board.visible = false;
     scene.add(board);
 
@@ -1684,7 +1741,7 @@ window.R3D = (() => {
     sunSprite.position.set(18, 15, -55);
     scene.add(sunSprite);
 
-    const cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, fog: false });
+    cloudMat = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.92, fog: false });
     for (let i = 0; i < 7; i++) {
       const cg = new THREE.Group();
       for (let b = 0; b < 3; b++) {
@@ -1829,7 +1886,7 @@ window.R3D = (() => {
       charId = def.id;
     }
     if (!guard) {
-      guard = makeChar({ id: 'guard', body: '#6f7891', belly: '#b9c2d2', hat: 'cap' });
+      guard = makeChar({ id: 'guard', body: '#6f7891', belly: '#b9c2d2', hat: 'guardcap' });
       guard.scale.setScalar(0.72);
       scene.add(guard);
     }
@@ -1891,6 +1948,16 @@ window.R3D = (() => {
     skyTexture.needsUpdate = true;
     _c2.setStyle(o.ground).offsetHSL(0, 0.14, 0.005);
     ground.material.color.copy(_c2);
+    // the railroad bed + ties follow the biome (a darker, desaturated version of
+    // the ground) so it isn't a brown track running through snow, lava or space
+    _c1.setStyle(o.ground).offsetHSL(0, -0.12, -0.13);
+    trackBed.material.color.copy(_c1);
+    _c1.offsetHSL(0, 0, -0.05);
+    for (const sl of sleepers) sl.material.color.copy(_c1);
+    // fade out the daytime sun + clouds as we approach Moon Base (night/space)
+    const day = 1 - (o.night || 0);
+    if (sunSprite) sunSprite.material.opacity = day;
+    if (cloudMat) cloudMat.opacity = 0.92 * day;
 
     // per-biome atmosphere: tint the sun, ambient and fog so each world has its own air
     const at = o.atmos;
@@ -2027,6 +2094,7 @@ window.R3D = (() => {
       jump: jumpH,
       slide: G.slideT >= 0 ? Math.sin((G.slideT / 0.7) * Math.PI) : 0,
       lean: G.laneTarget - G.laneF,
+      dying: G.state === 'dying' ? (1 - Math.max(0, G.dieT) / 0.9) : 0,
     });
 
     blob.position.x = G.laneF * LANE;
@@ -2038,7 +2106,7 @@ window.R3D = (() => {
     shieldBall.visible = G.pu.shield > 0;
     if (shieldBall.visible) {
       shieldBall.position.set(G.laneF * LANE, py + 0.95, 0);
-      shieldBall.material.opacity = 0.16 + 0.07 * Math.sin(G.phase * 5);
+      shieldBall.material.opacity = 0.34 + 0.1 * Math.sin(G.phase * 5);
     }
 
     // ----- guard -----
@@ -2052,7 +2120,7 @@ window.R3D = (() => {
       animateChar(guard, {
         run: true,
         phase: G.phase * 0.95,
-        jump: gd > 0.65 ? 0.5 : 0,
+        lunge: Math.max(0, Math.min(1, (gd - 0.55) / 0.45)), // reaches for you as he closes
         lean: (G.laneF - G.guardLane) * 0.5,
       });
     }
@@ -4482,7 +4550,8 @@ function render() {
       ctx.font = `800 ${fs}px "Baloo 2", "Comic Sans MS", sans-serif`;
     }
     ctx.textAlign = 'center';
-    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.45)';
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.62)';
+    ctx.lineJoin = 'round';
     ctx.strokeText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
     ctx.fillStyle = f.color;
     ctx.fillText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
@@ -5330,6 +5399,8 @@ function render3D() {
   const t0 = THEMES[i0 % THEMES.length], t1 = THEMES[i1 % THEMES.length];
   const petDef = S.activePet ? PETS.find(p => p.id === S.activePet) : null;
   const atmos = lerpAtmos(ATMOS[i0 % ATMOS.length], ATMOS[i1 % ATMOS.length], ft);
+  // how "Moon Base" (night) the current blend is — fades out daytime clouds/sun
+  const nightW = (i0 === 6 ? 1 - ft : 0) + (i1 === 6 ? ft : 0);
   R3D.render({
     G,
     charDef: charDef(),
@@ -5339,6 +5410,7 @@ function render3D() {
     huntWord: HUNT_WORD,
     petIcon: petDef ? petDef.icon : null,
     atmos,
+    night: nightW,
     reduce: REDUCE,
   });
 
@@ -5351,8 +5423,7 @@ function render3D() {
   // a fraction of the cost. Canvas2D filters are GPU-accelerated on real devices.
   if (!window.__lowGfx && !window.__bloomFail && ctx.filter !== undefined) bloomPass();
 
-  // night tint (Moon Base, theme index 6)
-  const nightW = (i0 === 6 ? 1 - ft : 0) + (i1 === 6 ? ft : 0);
+  // night tint (Moon Base, theme index 6) — nightW computed above for the renderer
   if (nightW > 0.05) {
     ctx.fillStyle = `rgba(14,14,72,${0.28 * nightW})`;
     ctx.fillRect(0, 0, W, H);
@@ -5395,16 +5466,18 @@ function render3D() {
       ctx.font = `800 ${fs}px "Baloo 2", "Comic Sans MS", sans-serif`;
     }
     ctx.textAlign = 'center';
-    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.45)';
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.62)';
+    ctx.lineJoin = 'round';
     ctx.strokeText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
     ctx.fillStyle = f.color;
     ctx.fillText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
   }
   ctx.globalAlpha = 1;
 
-  // boost speed lines
+  // boost speed lines (kept faint + hugging the edges so they don't bloom-wash
+  // over the centre praise/score text)
   if (G.pu.boost > 0 && G.state === 'playing') {
-    ctx.strokeStyle = 'rgba(255,255,255,.45)';
+    ctx.strokeStyle = 'rgba(255,255,255,.28)';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     for (let i = 0; i < 9; i++) {

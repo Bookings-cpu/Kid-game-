@@ -2415,7 +2415,8 @@ function render() {
       ctx.font = `800 ${fs}px "Baloo 2", "Comic Sans MS", sans-serif`;
     }
     ctx.textAlign = 'center';
-    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.45)';
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.62)';
+    ctx.lineJoin = 'round';
     ctx.strokeText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
     ctx.fillStyle = f.color;
     ctx.fillText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
@@ -3263,6 +3264,8 @@ function render3D() {
   const t0 = THEMES[i0 % THEMES.length], t1 = THEMES[i1 % THEMES.length];
   const petDef = S.activePet ? PETS.find(p => p.id === S.activePet) : null;
   const atmos = lerpAtmos(ATMOS[i0 % ATMOS.length], ATMOS[i1 % ATMOS.length], ft);
+  // how "Moon Base" (night) the current blend is — fades out daytime clouds/sun
+  const nightW = (i0 === 6 ? 1 - ft : 0) + (i1 === 6 ? ft : 0);
   R3D.render({
     G,
     charDef: charDef(),
@@ -3272,6 +3275,7 @@ function render3D() {
     huntWord: HUNT_WORD,
     petIcon: petDef ? petDef.icon : null,
     atmos,
+    night: nightW,
     reduce: REDUCE,
   });
 
@@ -3284,8 +3288,7 @@ function render3D() {
   // a fraction of the cost. Canvas2D filters are GPU-accelerated on real devices.
   if (!window.__lowGfx && !window.__bloomFail && ctx.filter !== undefined) bloomPass();
 
-  // night tint (Moon Base, theme index 6)
-  const nightW = (i0 === 6 ? 1 - ft : 0) + (i1 === 6 ? ft : 0);
+  // night tint (Moon Base, theme index 6) — nightW computed above for the renderer
   if (nightW > 0.05) {
     ctx.fillStyle = `rgba(14,14,72,${0.28 * nightW})`;
     ctx.fillRect(0, 0, W, H);
@@ -3328,16 +3331,18 @@ function render3D() {
       ctx.font = `800 ${fs}px "Baloo 2", "Comic Sans MS", sans-serif`;
     }
     ctx.textAlign = 'center';
-    ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,.45)';
+    ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(0,0,0,.62)';
+    ctx.lineJoin = 'round';
     ctx.strokeText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
     ctx.fillStyle = f.color;
     ctx.fillText(f.text, clamp(f.x, W * 0.5 - W * 0.46, W * 0.5 + W * 0.46), f.y);
   }
   ctx.globalAlpha = 1;
 
-  // boost speed lines
+  // boost speed lines (kept faint + hugging the edges so they don't bloom-wash
+  // over the centre praise/score text)
   if (G.pu.boost > 0 && G.state === 'playing') {
-    ctx.strokeStyle = 'rgba(255,255,255,.45)';
+    ctx.strokeStyle = 'rgba(255,255,255,.28)';
     ctx.lineWidth = 3;
     ctx.lineCap = 'round';
     for (let i = 0; i < 9; i++) {
