@@ -3321,7 +3321,10 @@ function spawnChunk() {
   // so new players (kids) get a confident start before it ramps up.
   const easy = G.dist < 900;
   let cand = PATTERNS.filter(p => {
-    if (easy && p.filter(k => k === 'train').length > 1) return false;
+    if (easy) {
+      if (p.filter(k => k === 'train').length > 1) return false;
+      if (!p.includes(null)) return false; // early game always keeps one free, no-action lane
+    }
     return patternSafeLanes(p).some(l => Math.abs(l - G.lastSafe) <= 1);
   });
   if (!cand.length) cand = PATTERNS.filter(p => patternSafeLanes(p).some(l => Math.abs(l - G.lastSafe) <= 1));

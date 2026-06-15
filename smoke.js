@@ -33,14 +33,17 @@ const ok = (c, m) => { console.log((c ? 'PASS' : 'FAIL') + ' — ' + m); if (!c)
   ok(sv.hunt === 6, 'wordHunt.got length matches RASCAL (6), got ' + sv.hunt);
   ok(sv.spinChain === 'number', 'spinChain counter exists');
 
-  // 3. start a run and confirm it advances + scores
-  await page.evaluate(() => { document.querySelectorAll('[id^="mod-"],[id^="ovl-"]').forEach(e=>e.classList.add('hidden')); startRun(); });
-  await page.waitForTimeout(150);
-  const s0 = await page.evaluate(() => ({ state: G.state, score: G.score }));
-  ok(s0.state === 'playing', 'run started (state=playing)');
-  await page.waitForTimeout(900);
-  const s1 = await page.evaluate(() => G.score);
-  ok(s1 > s0.score, 'score advances during play (' + s0.score + ' -> ' + s1 + ')');
+  // 3. start a run and confirm it advances + scores (drive update() directly so
+  // this is deterministic and not subject to headless rAF throttling)
+  const run = await page.evaluate(() => {
+    document.querySelectorAll('[id^="mod-"],[id^="ovl-"]').forEach(e=>e.classList.add('hidden'));
+    startRun();
+    const state = G.state, a = G.score;
+    for (let i = 0; i < 90; i++) update(1 / 60); // ~1.5s of play
+    return { state, a, b: G.score };
+  });
+  ok(run.state === 'playing', 'run started (state=playing)');
+  ok(run.b > run.a, 'score advances during play (' + run.a.toFixed(1) + ' -> ' + run.b.toFixed(1) + ')');
 
   // 4. spin chain cap: simulate landing +SPIN many times
   const spinTest = await page.evaluate(() => {
