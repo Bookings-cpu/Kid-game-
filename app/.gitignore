@@ -1,0 +1,21 @@
+# Capacitor / Node
+node_modules/
+# www/ is synced from the repo's game files by sync-www.sh — not committed
+www/
+
+# Android build artifacts
+android/.gradle/
+android/build/
+android/app/build/
+android/captures/
+android/.idea/
+android/local.properties
+android/app/release/
+android/app/debug/
+*.iml
+
+# Signing secrets — NEVER commit these
+*.keystore
+*.jks
+keystore.properties
+release-signing.properties
