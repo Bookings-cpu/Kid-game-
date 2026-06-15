@@ -1516,6 +1516,12 @@ function update(dt) {
   // Decay is brisk enough that a clean stretch reliably shakes him — the threat
   // should come from your own mistakes, not from never being able to recover.
   G.guardD = Math.max(0, G.guardD - dt * 0.22);
+  // Temple-Run chase: the guard is ALWAYS looming a little way back (visible, but
+  // calm — no alarm), and presses closer the faster you go. Past the mid-run he's
+  // on your heels (heartbeat + red edges) and a single stumble is fatal — a
+  // thematic skill ceiling. He never auto-catches a clean runner.
+  const lurk = 0.28 + clamp((G.speed - 360) / 120, 0, 1) * 0.34; // 0.28 → 0.62
+  if (G.guardD < lurk) G.guardD = lurk;
   if (G.guardD < 0.45) G.stumbled = false; // outran him — safe again
   G.guardLane = lerp(G.guardLane, G.laneF, Math.min(1, dt * 3.5));
   if (G.guardD > 0.45) {
@@ -2453,7 +2459,7 @@ function render() {
 
   // DANGER: red pulse closing in from the edges while the guard is near
   if (G.state === 'playing' && G.guardD > 0.45) {
-    const a = ((G.guardD - 0.45) / 0.55) * (0.22 + 0.13 * Math.sin(G.phase * 8));
+    const a = ((G.guardD - 0.45) / 0.55) * (0.22 + (REDUCE ? 0 : 0.13 * Math.sin(G.phase * 8)));
     const dg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.72);
     dg.addColorStop(0, 'rgba(255,30,30,0)');
     dg.addColorStop(1, `rgba(255,30,30,${a.toFixed(3)})`);
@@ -3354,7 +3360,7 @@ function render3D() {
 
   // danger pulse while the guard is close
   if (G.state === 'playing' && G.guardD > 0.45) {
-    const a = ((G.guardD - 0.45) / 0.55) * (0.22 + 0.13 * Math.sin(G.phase * 8));
+    const a = ((G.guardD - 0.45) / 0.55) * (0.22 + (REDUCE ? 0 : 0.13 * Math.sin(G.phase * 8)));
     const dg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.32, W / 2, H / 2, Math.max(W, H) * 0.72);
     dg.addColorStop(0, 'rgba(255,30,30,0)');
     dg.addColorStop(1, `rgba(255,30,30,${a.toFixed(3)})`);
