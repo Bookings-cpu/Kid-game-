@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Rail Rascals!</string>
+    <string name="title_activity_main">Rail Rascals!</string>
+    <string name="package_name">com.bdjofficial.railrascals</string>
+    <string name="custom_url_scheme">com.bdjofficial.railrascals</string>
+    <!-- Google's official TEST AdMob app id. Replace with your real ~ id before publishing. -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+</resources>

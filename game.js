@@ -61,9 +61,9 @@ const MAX_UPG = 5;
 const upgCost = (lvl) => 300 * lvl; // cost to go from lvl -> lvl+1
 
 const COIN_PACKS = [
-  { coins: 1000,  price: '£0.99' },
-  { coins: 6000,  price: '£3.99' },
-  { coins: 20000, price: '£9.99' },
+  { coins: 1000,  price: '£0.99', sku: 'coins_1000' },
+  { coins: 6000,  price: '£3.99', sku: 'coins_6000' },
+  { coins: 20000, price: '£9.99', sku: 'coins_20000' },
 ];
 const AD_REWARD = 100;
 const DAILY_REWARDS = [50, 75, 100, 150, 200, 300, 500];
@@ -787,6 +787,90 @@ function refreshBalances() {
 /* ---------- simulated rewarded ad ---------- */
 const Ad = { timer: null, onReward: null };
 
+/* ============================== native bridge ==============================
+   On the packaged Android app (Capacitor) this wires the opt-in rewarded ad to
+   real AdMob (child-directed / Families config) and the coin packs to real
+   Google Play Billing (direct, no third-party backend). On the web it all
+   no-ops and the placeholder flows below run instead. */
+const Native = {
+  on: !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()),
+  // Google's official TEST rewarded-ad unit — swapped for the real unit before release
+  REWARDED_AD_ID: 'ca-app-pub-3940256099942544/5224354917',
+  ads: null, store: null,
+
+  async init() {
+    if (!this.on) return;
+    // --- AdMob (rewarded, child-directed) ---
+    try {
+      const AdMob = Capacitor.Plugins && Capacitor.Plugins.AdMob;
+      if (AdMob) {
+        await AdMob.initialize({
+          initializeForTesting: true,           // TODO: set false for the production build
+          tagForChildDirectedTreatment: true,   // COPPA / Families: required
+          tagForUnderAgeOfConsent: true,
+          maxAdContentRating: 'General',         // G-rated ads only
+        });
+        this.ads = AdMob;
+      }
+    } catch (e) { /* ads stay on the placeholder */ }
+    // --- Google Play Billing (direct, via cordova-plugin-purchase) ---
+    try {
+      const CdvPurchase = window.CdvPurchase;
+      if (CdvPurchase && CdvPurchase.store) {
+        const store = CdvPurchase.store;
+        const { ProductType, Platform } = CdvPurchase;
+        store.register(COIN_PACKS.map(p => ({ id: p.sku, type: ProductType.CONSUMABLE, platform: Platform.GOOGLE_PLAY })));
+        store.when()
+          .approved(t => t.verify())
+          .verified(r => {
+            // a purchase cleared — grant the coins, then finish() (consume so it's re-buyable)
+            r.collection.forEach(p => {
+              const pack = COIN_PACKS.find(c => c.sku === (p.productId || p.id));
+              if (pack) {
+                addCoins(pack.coins);
+                toast(`+${fmt(pack.coins)} 🪙 — thank you!`, true);
+                AudioSys.sfx('buy');
+                renderShop();
+              }
+            });
+            r.finish();
+          });
+        store.initialize([Platform.GOOGLE_PLAY]).catch(() => {});
+        this.store = store;
+      }
+    } catch (e) { /* IAP stays on the placeholder */ }
+  },
+
+  // resolves true if the user earned the reward
+  showRewarded() {
+    const AdMob = this.ads;
+    if (!AdMob) return Promise.resolve(false);
+    return new Promise(async (resolve) => {
+      let rewarded = false; const ls = [];
+      const done = async (v) => { for (const l of ls) { try { await l.remove(); } catch (e) {} } resolve(v); };
+      try {
+        ls.push(await AdMob.addListener('onRewardedVideoAdReward', () => { rewarded = true; }));
+        ls.push(await AdMob.addListener('onRewardedVideoAdDismissed', () => done(rewarded)));
+        ls.push(await AdMob.addListener('onRewardedVideoAdFailedToShow', () => done(false)));
+        ls.push(await AdMob.addListener('onRewardedVideoAdFailedToLoad', () => done(false)));
+        await AdMob.prepareRewardVideoAd({ adId: Native.REWARDED_AD_ID });
+        await AdMob.showRewardVideoAd();
+      } catch (e) { done(false); }
+    });
+  },
+
+  // launch a real purchase; the coins are granted in the store.when().verified() handler
+  order(sku) {
+    const store = this.store;
+    if (!store) return;
+    try {
+      const product = store.get(sku, window.CdvPurchase.Platform.GOOGLE_PLAY);
+      const offer = product && product.getOffer();
+      if (offer) store.order(offer).catch(() => {});
+    } catch (e) { /* cancelled / unavailable */ }
+  },
+};
+
 // PLACEHOLDER rewarded ad. Before shipping to a kids store this MUST be replaced
 // with a certified child-safe rewarded-ad SDK (e.g. AdMob with child-directed
 // treatment / "Designed for Families", or a kids-certified network). All ad
@@ -794,6 +878,14 @@ const Ad = { timer: null, onReward: null };
 // store policies allow; the SDK must still be configured for age-appropriate,
 // non-personalised ad content. Real-money IAP stays behind openGate() above.
 function openAd(onReward) {
+  // native app: show a REAL AdMob rewarded ad instead of the placeholder overlay
+  if (Native.on && Native.ads) {
+    Native.showRewarded().then((rewarded) => {
+      if (rewarded) onReward();
+      else if (G.state === 'continue') startContinueCountdown(); // they bailed — resume the clock
+    });
+    return;
+  }
   Ad.onReward = onReward;
   $('mod-ad').classList.remove('hidden');
   $('btn-ad-claim').classList.add('hidden');
@@ -3771,11 +3863,16 @@ for (const b of document.querySelectorAll('.btn-pack')) {
     AudioSys.sfx('click');
     const pack = COIN_PACKS[+b.dataset.pack];
     openGate(() => {
-      // demo purchase — in a real store build this calls the platform billing API
-      addCoins(pack.coins);
-      toast(`+${fmt(pack.coins)} 🪙 purchased! (demo)`, true);
-      AudioSys.sfx('buy');
-      renderShop();
+      if (Native.on && Native.store) {
+        // real Google Play purchase — coins are granted in the verified() handler
+        Native.order(pack.sku);
+      } else {
+        // web/demo build — no real billing available
+        addCoins(pack.coins);
+        toast(`+${fmt(pack.coins)} 🪙 purchased! (demo)`, true);
+        AudioSys.sfx('buy');
+        renderShop();
+      }
     });
   });
 }
@@ -3846,8 +3943,12 @@ window.addEventListener('focus', () => {
 window.addEventListener('pointerdown', () => { AudioSys.ensure(); AudioSys.startMusic(); }, { once: true });
 
 /* ============================== boot ============================== */
-/* installable app: offline cache (only when served over http/https) */
-if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+/* wire up real AdMob + Play Billing on the native app (no-op on the web) */
+Native.init();
+
+/* installable PWA offline cache — web only. Inside the Capacitor WebView the
+   assets are already local, and a service worker there just shadows updates. */
+if ('serviceWorker' in navigator && location.protocol.startsWith('http') && !Native.on) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
   // when a new service worker takes over (fresh HTML cached), reload once so the
   // player always runs the latest build instead of a stale cached page
