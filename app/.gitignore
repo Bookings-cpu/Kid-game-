@@ -21,3 +21,4 @@ keystore.properties
 release-signing.properties
 *SECRET*
 *.aab
+android/.kotlin/
