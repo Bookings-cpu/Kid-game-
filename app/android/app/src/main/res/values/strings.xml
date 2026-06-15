@@ -4,6 +4,6 @@
     <string name="title_activity_main">Rail Rascals!</string>
     <string name="package_name">com.bdjofficial.railrascals</string>
     <string name="custom_url_scheme">com.bdjofficial.railrascals</string>
-    <!-- Google's official TEST AdMob app id. Replace with your real ~ id before publishing. -->
-    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+    <!-- Real AdMob app id for Rail Rascals! (publisher 5989955866748326). -->
+    <string name="admob_app_id">ca-app-pub-5989955866748326~2245560977</string>
 </resources>

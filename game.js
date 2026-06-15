@@ -794,8 +794,15 @@ const Ad = { timer: null, onReward: null };
    no-ops and the placeholder flows below run instead. */
 const Native = {
   on: !!(window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()),
-  // Google's official TEST rewarded-ad unit — swapped for the real unit before release
-  REWARDED_AD_ID: 'ca-app-pub-3940256099942544/5224354917',
+  // Flip to true ONLY for the final production upload: switches to the real ad
+  // unit and turns off AdMob test mode. Keep false while testing (closed test /
+  // sideload) so testers see safe TEST ads and never generate invalid traffic.
+  PROD: false,
+  // Rewarded ad unit: Google's TEST id while testing; the real unit in production.
+  get REWARDED_AD_ID() {
+    return this.PROD ? 'ca-app-pub-5989955866748326/7306315960'
+                     : 'ca-app-pub-3940256099942544/5224354917';
+  },
   ads: null, store: null,
 
   async init() {
@@ -805,7 +812,7 @@ const Native = {
       const AdMob = Capacitor.Plugins && Capacitor.Plugins.AdMob;
       if (AdMob) {
         await AdMob.initialize({
-          initializeForTesting: true,           // TODO: set false for the production build
+          initializeForTesting: !this.PROD,     // test mode off only for production
           tagForChildDirectedTreatment: true,   // COPPA / Families: required
           tagForUnderAgeOfConsent: true,
           maxAdContentRating: 'General',         // G-rated ads only
