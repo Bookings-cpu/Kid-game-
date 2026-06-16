@@ -59,7 +59,7 @@ production build.
   `coins_1000` £0.99 "Pile of Coins" · `coins_6000` £3.99 "Bag of Coins" ·
   `coins_20000` £9.99 "Chest of Coins".
 - Contact email: `Bookings@bdjofficial.com`
-- Privacy URL (once hosted): `https://bookings-cpu.github.io/kid-game-/privacy.html`
+- Privacy URL (once hosted): `https://bookings-cpu.github.io/Kid-game-/privacy.html`
 - Category Game → **Arcade**. Free. Contains ads: **Yes**. Designed for Families:
   **Yes**. Target ages: **under-13 (5–8, 9–12)**.
 
@@ -84,7 +84,7 @@ github.com/Bookings-cpu/Kid-game- → Settings → (if Private) Danger Zone → 
 visibility → **Public** (this exposes the source — confirm with the human first) →
 then Settings → **Pages** → Deploy from a branch → Branch
 `claude/kids-game-monetization-5jjqfz` → Folder `/ (root)` → Save. Wait ~1–2 min;
-verify `https://bookings-cpu.github.io/kid-game-/privacy.html` loads. *(Alternative:
+verify `https://bookings-cpu.github.io/Kid-game-/privacy.html` loads. *(Alternative:
 host `privacy.html` on the human's bdjofficial.com and use that URL.)*
 
 ### TASK 2 — Finish the Play Console (bulk)
