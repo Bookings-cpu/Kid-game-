@@ -57,18 +57,22 @@ these exact values. Graphics + the privacy page are already sent to you.
 - Frightening content: **No** · Sexual content: **No** · Bad language: **No** ·
   Controlled substances: **No** · Discrimination: **No**.
 - **Does the app contain simulated gambling (casino/betting)?** → **No.**
-- **Does the app offer digital purchases?** → **Yes.**
-- **Randomised digital items (loot boxes)?** → **Yes** — see disclosure below.
+- **Does the app offer digital purchases?** → **Yes.** (Coin packs buy only
+  deterministic items — hoverboards, the coin doubler, etc. — never a random reward.)
+- **Randomised digital items (loot boxes)?** → **No.** As of versionCode 3 the
+  Mystery Box is **earn-only** — it cannot be bought with coins or real money, so
+  there is **no paid loot box**. Answer this question **No**.
 - Shares location: **No.**
-- Expected result: **PEGI 3 / ESRB Everyone.**
+- Expected result: **PEGI 3 / ESRB Everyone** (all countries — no Australia/Brazil
+  exclusion needed now the paid loot box is removed).
 
-### In-app purchases + LOOT-BOX ODDS (required disclosure — kids app)
-The coin packs are real-money purchases, and in-game coins can open the **Mystery
-Box** (a randomised reward), so Google treats this as a loot box and requires the
-odds to be disclosed. **The app now shows these odds in-app on the Mystery Box,**
-and here they are for the listing/declaration:
+### In-app purchases (no paid loot box as of v3)
+Coin packs are real-money purchases, but in v3 **coins only buy deterministic
+items** (hoverboards, the coin doubler). The **Mystery Box is earn-only** — won
+from the prize wheel, daily rewards and run milestones — so it is **not** a loot
+box for rating purposes. The odds are still shown in-app for transparency:
 
-**Mystery Box** (bought for 400 coins, or earned):
+**Mystery Box** (earned free only — NOT purchasable):
 | Reward | Chance |
 |---|---|
 | 🪙 100 coins | 38% |

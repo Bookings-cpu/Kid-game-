@@ -71,7 +71,6 @@ const REVIVE_BASE = 100;
 const HUNT_WORD = 'RASCAL';
 const HOVERBOARD_TIME = 30;
 const HOVERBOARD_PRICE = 300;
-const BOX_PRICE = 400;
 const DOUBLER_PRICE = 25000;
 
 // rivals ladder — beat them all to become THE LEGEND
@@ -418,8 +417,10 @@ function renderBoxOdds() {
 function refreshBoxButtons() {
   $('btn-box-open').classList.toggle('hidden', S.boxes <= 0);
   $('btn-box-open').textContent = `Open it! (${fmt(S.boxes)} left)`;
-  $('btn-box-buy').classList.toggle('hidden', S.boxes > 0);
-  $('btn-box-buy').textContent = `Buy a box — 🪙 ${fmt(BOX_PRICE)}`;
+  // Mystery Boxes are EARN-ONLY (free) — won from the prize wheel, daily rewards
+  // and run milestones. They are never bought with coins or real money.
+  const earn = $('box-earn');
+  if (earn) earn.classList.toggle('hidden', S.boxes > 0);
 }
 
 function doOpenBox() {
@@ -3555,16 +3556,6 @@ function renderShop() {
       },
     },
     {
-      emoji: '🎁', name: `Mystery Box ×${fmt(S.boxes)}`,
-      desc: 'Random surprise: coins, boards… or the JACKPOT!',
-      label: `${CICO} ${fmt(BOX_PRICE)}`, cls: 'btn-yellow',
-      buy: () => {
-        if (S.coins < BOX_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }
-        S.coins -= BOX_PRICE; S.boxes++; save();
-        AudioSys.sfx('buy'); renderShop(); openBoxModal();
-      },
-    },
-    {
       emoji: '✨', name: 'Coin Doubler',
       desc: S.doubler ? 'Active — every coin counts twice, forever!' : 'Every coin counts TWICE — forever!',
       label: S.doubler ? 'OWNED!' : `${CICO} ${fmt(DOUBLER_PRICE)}`, cls: S.doubler ? 'btn-grey' : 'btn-yellow',
@@ -3805,13 +3796,6 @@ bind('btn-piggy-smash', () => smashPiggy(false));
 bind('btn-piggy-smash2x', () => { openAd(() => smashPiggy(true)); });
 bind('btn-piggy-close', () => $('mod-piggy').classList.add('hidden'));
 bind('btn-box-open', doOpenBox);
-bind('btn-box-buy', () => {
-  if (S.coins < BOX_PRICE) { toast('Not enough coins! Watch an ad? 🎬'); return; }
-  S.coins -= BOX_PRICE; S.boxes++; save();
-  AudioSys.sfx('buy');
-  refreshBoxButtons();
-  refreshBalances();
-});
 bind('btn-box-close', () => $('mod-box').classList.add('hidden'));
 bind('btn-resume', resumeGame);
 bind('btn-restart', () => startRun(G.daily));

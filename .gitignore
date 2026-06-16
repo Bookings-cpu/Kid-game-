@@ -1,0 +1,3 @@
+
+# signed app bundles — never commit (large + contains signing)
+*.aab

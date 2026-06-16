@@ -26,8 +26,9 @@ production build.
 ## THE APP — facts
 - Display name: **Rail Rascals!** · applicationId: **com.bdjofficial.railrascals** (permanent).
 - Free, child-directed (under-13) endless-runner. Monetisation: opt-in **AdMob
-  rewarded ads** + consumable **coin packs** (real Google Play Billing). Has a
-  Mystery Box (randomised, coin-buyable) that already shows its odds in-app.
+  rewarded ads** + consumable **coin packs** (real Google Play Billing). Coins buy
+  only deterministic items. The **Mystery Box is earn-only** (won free from the
+  wheel, daily rewards and milestones) — **no paid loot box** as of versionCode 3.
 - Tech: HTML5/JS game wrapped with **Capacitor 8** as a native Android app.
   Plugins: `@capacitor-community/admob@8` (rewarded, child-directed) and
   `cordova-plugin-purchase@13.16.1` (direct Play Billing 8.3.0, no third-party backend).
@@ -46,8 +47,9 @@ production build.
   - `PRIVACY.md` / `privacy.html` — privacy policy (page ready to host).
   - `icon-512.png`, `feature-graphic.png` (1024×500), `screenshot-1-menu.png`,
     `screenshot-2-run.png`, `screenshot-3-run.png` — listing graphics.
-- Bundle to upload: **railrascals-v2.aab** (on the human's machine; versionCode 2,
-  real AdMob app id, TEST ads, odds disclosure).
+- Bundle to upload: **railrascals-v3.aab** (versionCode 3, versionName 1.0.2;
+  real AdMob app id, TEST ads, **paid loot box removed / Mystery Box earn-only**).
+  Supersedes the earlier v2 — upload v3, not v2.
 - **Signing keystore** `railrascals-upload.keystore` + password in
   `KEYSTORE-SECRET.txt` are on the human's machine — IRREPLACEABLE, needed for every
   future build. NEVER commit or share them; ask the human for them when rebuilding.
@@ -96,7 +98,8 @@ pick files (graphics + AAB), and give tester emails.
 - App content checklist: Privacy policy (Task 1 URL); Ads = Yes; App access = all
   functionality open (no login); Content rating questionnaire (violence/sexual/
   language/drugs/gambling/discrimination = No; digital purchases = Yes; loot boxes =
-  Yes; location = No → PEGI 3 / Everyone); Target audience = ages 5–8 & 9–12,
+  **No** (Mystery Box is earn-only, not purchasable); location = No → PEGI 3 /
+  Everyone, all countries); Target audience = ages 5–8 & 9–12,
   appeals to children = Yes → Designed for Families.
 - **DATA SAFETY (the nuanced one):** the GAME collects no personal data; the only
   processor is AdMob serving NON-personalised ads to children with the advertising-ID
@@ -111,7 +114,7 @@ pick files (graphics + AAB), and give tester emails.
 
 ### TASK 3 — Closed testing (starts the 14-day clock)
 Test and release → Testing → **Closed testing** → create track → Create new release →
-accept Play App Signing (Google-managed) → upload **railrascals-v2.aab** (human picks
+accept Play App Signing (Google-managed) → upload **railrascals-v3.aab** (human picks
 the file) → notes "First closed-test build" → add **≥12 testers** (ask the human) →
 roll out to **closed testing (NOT production)**. Confirm the 14-day clock is running.
 
