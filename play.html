@@ -532,6 +532,13 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
   .dialog { width:min(80vw,460px); }
 }
 
+/* Mystery Box loot-box odds disclosure */
+.box-odds{ width:100%; max-width:300px; margin:4px auto 0; font-size:13px;
+  background:rgba(0,0,0,.16); border-radius:12px; padding:9px 13px; }
+.box-odds b{ display:block; font-size:12px; opacity:.85; margin-bottom:5px; text-align:center; font-weight:700; }
+.odds-row{ display:flex; justify-content:space-between; gap:10px; padding:1.5px 0; }
+.odds-row span:last-child{ font-weight:700; opacity:.95; }
+
 </style>
 </head>
 <body>
@@ -905,6 +912,7 @@ body.reduce-motion *, body.reduce-motion *::before, body.reduce-motion *::after 
     <div id="box-reward"></div>
     <button id="btn-box-open" class="btn btn-big btn-yellow">Open it!</button>
     <button id="btn-box-buy" class="btn btn-big btn-blue hidden">Buy a box</button>
+    <div id="box-odds" class="box-odds"></div>
     <button id="btn-box-close" class="btn btn-link">Close</button>
   </div>
 </div>
@@ -2517,11 +2525,11 @@ function nextHuntLetter() {
 
 /* ============================== mystery boxes ============================== */
 const BOX_REWARDS = [
-  { w: 38, gen: () => ({ text: '🪙 100 coins!', coins: 100 }) },
-  { w: 25, gen: () => ({ text: '🪙 250 coins!', coins: 250 }) },
-  { w: 15, gen: () => ({ text: '🪙 500 coins!!', coins: 500 }) },
-  { w: 14, gen: () => ({ text: '🛹 A hoverboard!', board: 1 }) },
-  { w: 8,  gen: () => ({ text: '💰 JACKPOT! 1,000 coins!!!', coins: 1000, jackpot: true }) },
+  { w: 38, name: '🪙 100 coins', gen: () => ({ text: '🪙 100 coins!', coins: 100 }) },
+  { w: 25, name: '🪙 250 coins', gen: () => ({ text: '🪙 250 coins!', coins: 250 }) },
+  { w: 15, name: '🪙 500 coins', gen: () => ({ text: '🪙 500 coins!!', coins: 500 }) },
+  { w: 14, name: '🛹 Hoverboard', gen: () => ({ text: '🛹 A hoverboard!', board: 1 }) },
+  { w: 8,  name: '💰 1,000 coins', gen: () => ({ text: '💰 JACKPOT! 1,000 coins!!!', coins: 1000, jackpot: true }) },
 ];
 
 function rollBox() {
@@ -2536,7 +2544,18 @@ function openBoxModal() {
   $('box-reward').textContent = '';
   $('box-art').textContent = '🎁';
   $('box-art').classList.add('shaking');
+  renderBoxOdds();
   refreshBoxButtons();
+}
+
+// loot-box odds disclosure (required for purchasable randomised items) — rendered
+// straight from the reward table so it can never drift out of sync.
+function renderBoxOdds() {
+  const el = $('box-odds');
+  if (!el) return;
+  const total = BOX_REWARDS.reduce((s, r) => s + r.w, 0);
+  el.innerHTML = '<b>Chances of each prize</b>' + BOX_REWARDS.map(r =>
+    `<div class="odds-row"><span>${r.name}</span><span>${Math.round((r.w / total) * 100)}%</span></div>`).join('');
 }
 
 function refreshBoxButtons() {
