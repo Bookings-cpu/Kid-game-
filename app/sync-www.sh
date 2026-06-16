@@ -9,3 +9,7 @@ cp ../index.html ../game.js ../renderer3d.js ../three.min.js ../style.css \
    ../manifest.json ../icon-192.png ../icon-512.png www/
 rm -rf www/fonts && cp -r ../fonts www/fonts
 echo "synced game assets -> app/www"
+# Push the web assets into the native Android project (android/app/src/main/assets/public).
+# WITHOUT this, `cap build` packages a stale copy and your source edits never ship.
+npx cap sync android
+echo "synced app/www -> android assets (cap sync)"
